@@ -65,5 +65,73 @@ src/
 
 Más allá de las funcionalidades propias del sistema, se tuvieron en cuenta ciertos aspectos que resultan igual de relevantes dado el contexto gubernamental del proyecto: la seguridad de la información (cifrado y auditoría), la disponibilidad del servicio, la capacidad de escalar conforme aumente el número de ciudadanos e integraciones, y la trazabilidad de cada operación realizada sobre la identidad de un usuario.
 
+---
+
+# ETAPA 2 — Patrón Singleton (primera funcionalidad)
+
+En esta etapa se armó la primera parte con código del sistema y se le aplicó
+el patrón **Singleton**.
+
+## Qué se hizo
+
+Se construyó un **Gestor de Configuración** (`ConfigManager`): la pieza que
+guarda los datos que el sistema necesita para arrancar (puerto de la API,
+clave de los tokens, datos de la base de datos, qué tan exigente es la
+verificación biométrica). Los lee **una sola vez** al inicio y después se los
+pasa igual a cualquier parte del sistema que se los pida.
+
+## Por qué Singleton
+
+Porque la configuración tiene que ser **una sola para todos**. Si cada módulo
+armara la suya, podrían terminar trabajando con datos distintos. El Singleton
+asegura que exista una única copia, que se crea la primera vez que hace falta
+y a la que siempre se llega por el mismo lado (`ConfigManager.getInstance()`).
+
+## Cómo incide en el código
+
+- Todos los módulos leen la configuración del mismo lugar, así que no hay
+  descuadres entre unos y otros.
+- Los datos se leen y se revisan una sola vez, no cada rato.
+- No hay que andar pasando la configuración de un lado a otro por parámetros.
+- Si algún día cambia de dónde salen esos datos, se ajusta solo dentro del
+  gestor y nada más.
+
+Ejemplo dentro del proyecto: el `VerificadorBiometrico` no tiene el umbral
+escrito a mano en el código, se lo pide al gestor.
+
+## Documentación detallada
+
+Explicación completa y con calma (qué es el patrón, cómo afecta al código,
+ventajas y cosas a tener en cuenta): [`docs/ETAPA-2-Singleton.md`](docs/ETAPA-2-Singleton.md)
+
+## Cómo ejecutar
+
+```bash
+npm install       # instalar dependencias
+npm test          # correr las pruebas
+npm run build     # compilar
+node dist/index.js  # ver la demostración
+```
+
+## Pruebas / Testing
+
+Las pruebas están en [`tests/`](tests) y se ejecutan con `npm test`.
+Cubren el comportamiento del patrón (instancia única, carga única,
+inmutabilidad, validaciones) y su uso desde otro módulo.
+
+Estado actual: **12 pruebas, todas en verde.**
+
+## Archivos añadidos en esta etapa
+
+```
+src/infrastructure/config/config-manager.ts     # El Singleton
+src/application/auth/verificador-biometrico.ts   # Módulo que lo consume
+src/index.ts                                     # Demostración
+tests/config-manager.test.ts                     # Pruebas del patrón
+tests/verificador-biometrico.test.ts             # Pruebas del uso
+```
+
+---
+
 ## Autor
 Keanon Jeanpierre Angarita Olarte
