@@ -133,5 +133,157 @@ tests/verificador-biometrico.test.ts             # Pruebas del uso
 
 ---
 
+# ETAPA 3 — Patrón Factory Method (autenticación multifactor)
+
+En esta etapa se sumó la **autenticación multifactor** y se le aplicó el
+patrón **Factory Method**.
+
+## En una frase
+
+El sistema comprueba la identidad combinando tres factores:
+
+| Factor | Tipo | Cómo se comprueba |
+|---|---|---|
+| Contraseña | *algo que sabes* | Coincide con la contraseña registrada del usuario |
+| Token al teléfono | *algo que tienes* | Coincide con el código enviado por SMS y todavía vigente (5 min) |
+| Rostro | *algo que eres* | El puntaje del sensor facial alcanza el umbral configurado |
+
+El **procedimiento** para validar un factor es siempre el mismo; lo único que
+cambia es *qué factor* se usa. Esa elección es la que resuelve el Factory
+Method.
+
+## ¿Qué es el patrón Factory Method? (contado fácil)
+
+Piensa en una oficina de trámites con varias ventanillas. El **procedimiento**
+es idéntico en todas: pides turno, entregas tus datos, te dan un resultado. Lo
+que cambia es la **herramienta** de cada ventanilla: una revisa contraseñas,
+otra códigos de SMS, otra tiene la cámara.
+
+El Factory Method es esa idea en código:
+
+1. Una clase "madre" (**el Creador**) define el procedimiento completo.
+2. En medio de ese procedimiento hay **un hueco**: "aquí va el factor", pero
+   la clase madre no dice cuál.
+3. Cada **subclase** rellena ese hueco devolviendo el factor que le toca.
+
+La clase madre nunca escribe `new FactorContrasena()`. Solo llama a su método
+`crearFactor()` y confía en que la subclase lo resuelva.
+
+## Los papeles del patrón en el proyecto
+
+| Papel en el patrón | En el código |
+|---|---|
+| Creador (abstracto) | `FlujoAutenticacion` |
+| Método fábrica | `crearFactor()` |
+| Creadores concretos | `FlujoContrasena`, `FlujoTokenTelefono`, `FlujoRostro` |
+| Producto (interfaz) | `FactorAutenticacion` |
+| Productos concretos | `FactorContrasena`, `FactorTokenTelefono`, `FactorRostro` |
+
+El **procedimiento común** vive en `FlujoAutenticacion.autenticar()`: limpia la
+entrada, corta si viene vacía, ejecuta el factor y devuelve un resultado con
+la misma forma para todos (`factor`, `autenticado`, `motivo`).
+
+Cada **factor** guarda su propia regla:
+
+- `FactorContrasena` compara contra la contraseña registrada.
+- `FactorTokenTelefono` compara el código **y** revisa que no haya expirado.
+- `FactorRostro` compara el puntaje facial contra el umbral, que **no está
+  escrito ahí**: lo pide al Gestor de Configuración (el Singleton de la
+  ETAPA 2).
+
+## ¿Cómo incide (afecta) este patrón en el código?
+
+### Sin Factory Method
+
+El flujo tendría un `switch` que hay que reabrir con cada factor nuevo:
+
+```ts
+if (tipo === 'contraseña') { /* crea y usa contraseña */ }
+else if (tipo === 'token') { /* crea y usa token */ }
+else if (tipo === 'rostro') { /* crea y usa rostro */ }
+```
+
+La lógica de "cómo se autentica" queda mezclada con la de "qué factor es", y
+cada cambio arriesga romper lo que ya funcionaba.
+
+### Con Factory Method
+
+- **El procedimiento se escribe una sola vez**, en `FlujoAutenticacion`.
+- **Agregar un factor es agregar una clase** (por ejemplo, una llave física
+  USB): no se toca lo existente (principio abierto/cerrado).
+- **Cada factor guarda su regla en su propio archivo**, sin estorbar a los
+  demás.
+- **El resto del sistema trata a todos los flujos igual**: recibe un
+  `FlujoAutenticacion` y llama a `autenticar()`, sin saber cuál es. Eso es lo
+  que permite el intento multifactor: recorrer una lista de flujos distintos
+  con el mismo código.
+
+### Conexión con la ETAPA 2
+
+`FactorRostro` no tiene el umbral escrito a mano:
+
+```ts
+const umbral = ConfigManager.getInstance().obtener('biometriaUmbralMinimo');
+const superado = puntaje >= umbral;
+```
+
+El **Singleton** garantiza que ese umbral sea único para todo el sistema y el
+**Factory Method** lo aplica dentro del factor facial sin que el flujo se
+entere.
+
+## Dónde encaja en la arquitectura hexagonal
+
+Productos y creadores viven en la capa de **aplicación** (`application/auth`):
+orquestan el caso de uso "autenticar a una persona" y, en el caso del rostro,
+consultan la configuración. La capa de infraestructura solo aporta ese dato.
+
+## Cosas a tener en cuenta del Factory Method
+
+| Punto flojo | Qué se hizo aquí |
+|---|---|
+| Aparecen varias clases pequeñas (una por producto y otra por creador) | Se aceptó a cambio de que cada archivo sea corto y de una sola responsabilidad |
+| Puede ser exagerado si solo hubiera un factor | Aquí hay tres reales y se esperan más, así que se justifica |
+| El creador podría cargarse de lógica | `FlujoAutenticacion` solo limpia la entrada y arma el resultado; la regla de cada factor está en su propia clase |
+
+## Pruebas / Testing
+
+Las pruebas nuevas están en [`tests/`](tests):
+
+**`tests/factores-autenticacion.test.ts`** — cada factor (Producto) por separado:
+
+| Prueba | Qué revisa |
+|---|---|
+| Contraseña | Se acepta solo si coincide con la registrada |
+| Token al teléfono | Vale solo si es el código enviado y no expiró |
+| Rostro | Se mide contra el umbral que entrega el Singleton |
+
+**`tests/flujo-autenticacion.test.ts`** — el Factory Method:
+
+| Prueba | Qué revisa |
+|---|---|
+| Creación del factor | `crearFactor()` devuelve el producto correcto en cada subclase |
+| Paso común | El creador rechaza una entrada vacía sin ejecutar el factor |
+| Factory Method + Singleton | Si cambia el umbral en config, el flujo de rostro cambia su decisión |
+| Uso polimórfico | Un mismo código recorre los tres flujos en un intento multifactor |
+
+Estado actual: **19 pruebas, todas en verde** (12 de la ETAPA 2 + 7 nuevas).
+
+## Archivos añadidos en esta etapa
+
+```
+src/application/auth/factor-autenticacion.ts     # Contrato (Producto) + ResultadoFactor
+src/application/auth/factor-contrasena.ts         # Producto concreto
+src/application/auth/factor-token-telefono.ts     # Producto concreto
+src/application/auth/factor-rostro.ts             # Producto concreto (usa el Singleton)
+src/application/auth/flujo-autenticacion.ts        # Creador abstracto (define el Factory Method)
+src/application/auth/flujo-contrasena.ts           # Creador concreto
+src/application/auth/flujo-token-telefono.ts       # Creador concreto
+src/application/auth/flujo-rostro.ts               # Creador concreto
+tests/factores-autenticacion.test.ts              # Pruebas de los Productos
+tests/flujo-autenticacion.test.ts                 # Pruebas del Factory Method
+```
+
+---
+
 ## Autor
 Keanon Jeanpierre Angarita Olarte

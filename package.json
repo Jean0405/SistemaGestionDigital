@@ -1,7 +1,7 @@
 {
   "name": "sistema-gestion-digital",
-  "version": "0.2.0",
-  "description": "Sistema de Gestión de Identidad Digital (SGID) - ETAPA 2: patrón Singleton para el Gestor de Configuración",
+  "version": "0.3.0",
+  "description": "Sistema de Gestión de Identidad Digital (SGID) - ETAPA 3: patrón Factory Method para la autenticación multifactor",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
@@ -10,6 +10,7 @@
   },
   "keywords": [
     "singleton",
+    "factory-method",
     "hexagonal",
     "identidad-digital",
     "typescript"
