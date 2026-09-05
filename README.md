@@ -268,6 +268,8 @@ Las pruebas nuevas están en [`tests/`](tests):
 
 Estado actual: **19 pruebas, todas en verde** (12 de la ETAPA 2 + 7 nuevas).
 
+![alt text](image.png)
+
 ## Archivos añadidos en esta etapa
 
 ```
