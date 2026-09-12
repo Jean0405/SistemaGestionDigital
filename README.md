@@ -268,7 +268,7 @@ Las pruebas nuevas están en [`tests/`](tests):
 
 Estado actual: **19 pruebas, todas en verde** (12 de la ETAPA 2 + 7 nuevas).
 
-![alt text](image.png)
+![alt text](/docs/img/image.png)
 
 ## Archivos añadidos en esta etapa
 
@@ -283,6 +283,216 @@ src/application/auth/flujo-token-telefono.ts       # Creador concreto
 src/application/auth/flujo-rostro.ts               # Creador concreto
 tests/factores-autenticacion.test.ts              # Pruebas de los Productos
 tests/flujo-autenticacion.test.ts                 # Pruebas del Factory Method
+```
+
+---
+
+# ETAPA 4 — Patrón Builder (emisión de la credencial digital)
+
+En esta etapa se sumó la **emisión de la credencial digital** que recibe un
+usuario tras autenticarse, y se le aplicó el patrón **Builder**.
+
+## En una frase
+
+Una `CredencialDigital` (usuario, rol, permisos, factores con los que se
+autenticó, fecha de emisión y de expiración) es un objeto con varias partes
+opcionales que se arman de a poco. En vez de un constructor con muchos
+parámetros, un **builder** la arma paso a paso y un **director** conoce la
+receta de permisos según el rol (ciudadano, administrador, entidad externa).
+
+## ¿Qué es el patrón Builder?
+
+Piensa en pedir una hamburguesa personalizada: primero el pan, luego la
+carne, después decides qué agregarle (queso, tocineta, salsas), y al final
+"arman" el pedido. Nadie llama a un constructor gigante con veinte
+parámetros donde hay que acordarse del orden de cada ingrediente.
+
+El Builder es esa idea en código:
+
+1. Un objeto **builder** ofrece métodos para ir agregando partes
+   (`establecerUsuario()`, `agregarPermiso()`, etc.), uno por uno.
+2. Al final se llama a un método (`obtenerCredencial()`) que entrega el
+   objeto ya armado y revisado.
+3. Un **director**, si existe, conoce recetas fijas (por ejemplo, "así se arma
+   la credencial de un administrador") y usa el builder para seguirlas, sin
+   que quien lo llama tenga que saber el detalle de cada paso.
+
+## Los papeles del patrón en el proyecto
+
+| Papel en el patrón | En el código |
+|---|---|
+| Producto | `CredencialDigital` |
+| Builder (interfaz) | `ConstructorCredencial` |
+| Builder concreto | `CredencialDigitalBuilder` |
+| Director | `DirectorCredenciales` |
+
+`CredencialDigitalBuilder` va guardando usuario, rol, permisos y factores
+superados, y solo en `obtenerCredencial()`:
+
+- valida que no falte nada esencial (usuario, rol, al menos un factor),
+- calcula la fecha de expiración con los minutos de vigencia del **Gestor de
+  Configuración** (el Singleton de la ETAPA 2),
+- entrega la credencial ya congelada (`Object.freeze`).
+
+`DirectorCredenciales` tiene una receta por cada actor del sistema (ver
+`Actores involucrados` más arriba): `construirCredencialCiudadano()`,
+`construirCredencialAdministrador()` y `construirCredencialEntidadExterna()`.
+Cada una arma el mismo tipo de objeto pero con permisos distintos.
+
+## ¿Cómo incide (afecta) este patrón en el código?
+
+### Sin Builder
+
+La credencial se armaría con un constructor o una función con muchos
+parámetros, varios de ellos opcionales:
+
+```ts
+crearCredencial('u1', 'Ana', 'ciudadano', ['contraseña', 'rostro'], ['consultar-identidad'], ...)
+```
+
+Fácil de llamar mal (orden de argumentos, olvidar uno) y difícil de leer.
+
+### Con Builder
+
+- **Se arma de a poco y con nombre en cada paso**
+  (`.establecerRol('ciudadano').agregarPermiso(...)`), sin adivinar el orden
+  de parámetros.
+- **La validación queda en un solo lugar** (`obtenerCredencial()`): no se
+  puede olvidar revisar un dato antes de emitir la credencial.
+- **El director evita repetir la receta de cada rol** en cada lugar del
+  código que necesite emitir una credencial.
+- **Agregar un permiso o un rol nuevo no toca al builder**, solo al director
+  (o a quien llame al builder directamente).
+
+### Cómo se conecta con las etapas anteriores
+
+La credencial se emite **después** de un intento de autenticación
+multifactor (ETAPA 3) exitoso, y con los factores que sí se superaron:
+
+```ts
+const credencial = director.construirCredencialCiudadano(id, nombre, factoresSuperados);
+```
+
+Y su vigencia no está escrita a mano: sale del mismo Singleton que ya
+entregaba el umbral biométrico.
+
+```ts
+const minutos = ConfigManager.getInstance().obtener('jwtExpiracionMinutos');
+```
+
+## Dónde encaja en la arquitectura hexagonal
+
+- `CredencialDigital` (el producto) vive en el **dominio**: es solo la forma
+  del dato, sin dependencias externas.
+- El builder y el director viven en la **aplicación**: orquestan el caso de
+  uso "emitir una credencial" y consultan la configuración.
+
+## Cosas a tener en cuenta del Builder
+
+| Punto flojo | Qué se hizo aquí |
+|---|---|
+| Puede ser exagerado si el objeto tuviera pocos campos | Aquí hay validaciones y un cálculo (la expiración), no es solo "juntar campos" |
+| El director puede volverse un cajón de recetas si crecen mucho | Por ahora son tres, una por actor del sistema; si crecen se pueden separar por archivo |
+| El builder se puede reutilizar por accidente entre credenciales | El director crea un builder nuevo en cada método, así que no se mezclan datos |
+
+## Pruebas / Testing
+
+Las pruebas nuevas están en [`tests/`](tests):
+
+**`tests/credencial-digital-builder.test.ts`** — el Builder:
+
+| Prueba | Qué revisa |
+|---|---|
+| Armado paso a paso | Los permisos y factores quedan como se fueron agregando |
+| Validación | No entrega la credencial si falta usuario, rol o factores |
+| Vigencia | La expiración usa los minutos del Singleton de configuración |
+
+**`tests/director-credenciales.test.ts`** — el Director:
+![alt text](/docs/img/image-1.png)
+
+| Prueba | Qué revisa |
+|---|---|
+| Recetas por rol | Cada método arma el rol y los permisos que le corresponden |
+| Independencia | Dos credenciales seguidas no comparten datos entre sí |
+
+Estado actual: **24 pruebas, todas en verde** (19 de las etapas anteriores + 5 nuevas).
+
+## UML del flujo (Builder)
+
+```mermaid
+sequenceDiagram
+    participant C as Cliente (index.ts)
+    participant D as DirectorCredenciales
+    participant B as CredencialDigitalBuilder
+    participant CM as ConfigManager (Singleton)
+    participant P as CredencialDigital
+
+    C->>D: construirCredencialCiudadano(id, nombre, factores)
+    D->>B: new CredencialDigitalBuilder()
+    D->>B: establecerUsuario(id, nombre)
+    D->>B: establecerRol("ciudadano")
+    loop por cada factor superado
+        D->>B: agregarFactorSuperado(factor)
+    end
+    D->>B: agregarPermiso("consultar-identidad")
+    D->>B: obtenerCredencial()
+    B->>CM: getInstance().obtener("jwtExpiracionMinutos")
+    CM-->>B: minutos
+    B->>P: arma y congela el objeto
+    B-->>D: CredencialDigital
+    D-->>C: CredencialDigital
+```
+
+```mermaid
+classDiagram
+    class ConstructorCredencial {
+        <<interface>>
+        +establecerUsuario(usuarioId, nombreCompleto)
+        +establecerRol(rol)
+        +agregarPermiso(permiso)
+        +agregarFactorSuperado(factor)
+        +obtenerCredencial() CredencialDigital
+    }
+    class CredencialDigitalBuilder {
+        -usuarioId
+        -rol
+        -permisos
+        -factoresSuperados
+        +obtenerCredencial() CredencialDigital
+    }
+    class DirectorCredenciales {
+        +construirCredencialCiudadano()
+        +construirCredencialAdministrador()
+        +construirCredencialEntidadExterna()
+    }
+    class CredencialDigital {
+        +usuarioId
+        +rol
+        +permisos
+        +factoresSuperados
+        +emitidaEn
+        +expiraEn
+    }
+    class ConfigManager {
+        +getInstance() ConfigManager
+        +obtener(clave)
+    }
+
+    ConstructorCredencial <|.. CredencialDigitalBuilder
+    DirectorCredenciales --> ConstructorCredencial : usa
+    CredencialDigitalBuilder ..> ConfigManager : consulta
+    CredencialDigitalBuilder --> CredencialDigital : construye
+```
+
+## Archivos añadidos en esta etapa
+
+```
+src/domain/credencial/credencial-digital.ts            # Producto
+src/application/credencial/constructor-credencial.ts    # Builder (interfaz)
+src/application/credencial/credencial-digital-builder.ts # Builder concreto
+src/application/credencial/director-credenciales.ts      # Director
+tests/credencial-digital-builder.test.ts                # Pruebas del Builder
+tests/director-credenciales.test.ts                     # Pruebas del Director
 ```
 
 ---
