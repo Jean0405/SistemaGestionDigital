@@ -497,5 +497,169 @@ tests/director-credenciales.test.ts                     # Pruebas del Director
 
 ---
 
+# ETAPA 5 — Patrón Adapter (envío de SMS)
+
+En esta etapa se sumó el **envío del código de seguridad por SMS** (el que
+usa el factor `token-telefono` de la ETAPA 3) y se le aplicó el patrón
+**Adapter**.
+
+## En una frase
+
+El sistema puede tener que enviar SMS a través de distintos proveedores
+externos, y cada proveedor trae su propio SDK con su propia forma de
+funcionar. El Adapter envuelve cada SDK para que, de cara al resto del
+sistema, todos se usen exactamente igual.
+
+## ¿Qué es el patrón Adapter? (contado fácil)
+
+Piensa en un cargador de celular y un enchufe de otro país: el cargador no
+cambia, pero necesitas un adaptador en el medio para que la clavija encaje.
+El adaptador no hace el trabajo pesado (eso lo sigue haciendo el cargador),
+solo traduce una forma de conexión a otra.
+
+En código pasa lo mismo con dos SDKs de SMS distintos:
+
+- Uno espera `sendMessage(to, body)` y devuelve `{ status, id }`.
+- El otro espera `enviarTexto({ numero, texto })`, devuelve solo un texto y
+  **lanza una excepción** si algo sale mal.
+
+Ninguno de los dos habla el mismo "idioma" que el resto del sistema necesita.
+El Adapter traduce cada uno a una interfaz común, para que quien envía el SMS
+no tenga que saber con cuál proveedor está hablando.
+
+## Los papeles del patrón en el proyecto
+
+| Papel en el patrón | En el código |
+|---|---|
+| Interfaz que el sistema espera (Target) | `EnviadorNotificaciones` |
+| Clases externas con forma distinta (Adaptee) | `SmsGlobalSDK`, `SmsLocalSDK` |
+| Adaptadores | `AdaptadorSmsGlobal`, `AdaptadorSmsLocal` |
+
+Cada adaptador recibe el SDK del proveedor, lo llama con su forma propia y
+devuelve siempre lo mismo: `{ enviado, proveedor, referencia }`. Uno traduce
+un `status: 'SENT' | 'FAILED'`; el otro atrapa la excepción y la convierte en
+`enviado: false`, sin que quien llama note la diferencia.
+
+## ¿Cómo incide (afecta) este patrón en el código?
+
+### Sin Adapter
+
+Quien necesite enviar un SMS tendría que conocer el SDK específico de cada
+proveedor, revisar su forma particular de éxito/error, y repetir esa lógica
+en cada lugar del sistema que envíe mensajes. Cambiar de proveedor obligaría
+a tocar todo ese código disperso.
+
+### Con Adapter
+
+- **El resto del sistema solo conoce `EnviadorNotificaciones`**, nunca los
+  SDKs reales.
+- **Cambiar o agregar un proveedor es agregar un adaptador nuevo**, sin tocar
+  el código que ya envía notificaciones.
+- **Las diferencias raras de cada SDK** (una excepción en vez de un valor de
+  retorno, por ejemplo) quedan encerradas dentro de su propio adaptador.
+
+### Conexión con las etapas anteriores
+
+El código que se envía por SMS es el mismo que después verifica
+`FactorTokenTelefono` (ETAPA 3):
+
+```ts
+const envio = new AdaptadorSmsGlobal().enviar(telefono, `Tu código es ${codigo}`);
+// ...
+new FlujoTokenTelefono(codigo, Date.now()).autenticar(codigoIngresado);
+```
+
+## Dónde encaja en la arquitectura hexagonal
+
+Aquí el patrón Adapter y el "adaptador" de la arquitectura hexagonal son,
+literalmente, la misma idea: `EnviadorNotificaciones` es el **puerto**
+(vive en `application/notificaciones`) y `AdaptadorSmsGlobal` /
+`AdaptadorSmsLocal` son los **adaptadores** de infraestructura
+(`infrastructure/notificaciones`) que lo conectan con el mundo externo.
+
+## Cosas a tener en cuenta del Adapter
+
+| Punto flojo | Qué se hizo aquí |
+|---|---|
+| Puede volverse una capa extra innecesaria si solo hay un proveedor | Aquí hay dos proveedores reales con formas distintas, así que se justifica |
+| Un adaptador mal hecho puede esconder errores del SDK real | Cada adaptador traduce explícitamente tanto el éxito como el fallo, no solo el camino feliz |
+
+## Pruebas / Testing
+
+**`tests/adaptadores-notificaciones.test.ts`**:
+![alt text](image.png)
+
+| Prueba | Qué revisa |
+|---|---|
+| Adaptador SMS Global | Traduce el éxito y el fallo del SDK a `ResultadoEnvio` |
+| Adaptador SMS Local | Traduce el éxito y la excepción del SDK a `ResultadoEnvio` |
+| Uso intercambiable | Los dos adaptadores se usan igual desde el mismo código |
+
+Estado actual: **27 pruebas, todas en verde** (24 de las etapas anteriores + 3 nuevas).
+
+## UML del flujo (Adapter)
+
+```mermaid
+classDiagram
+    class EnviadorNotificaciones {
+        <<interface>>
+        +enviar(destino, mensaje) ResultadoEnvio
+    }
+    class SmsGlobalSDK {
+        +sendMessage(to, body) status, id
+    }
+    class SmsLocalSDK {
+        +enviarTexto(opciones) string
+    }
+    class AdaptadorSmsGlobal {
+        -sdk: SmsGlobalSDK
+        +enviar(destino, mensaje) ResultadoEnvio
+    }
+    class AdaptadorSmsLocal {
+        -sdk: SmsLocalSDK
+        +enviar(destino, mensaje) ResultadoEnvio
+    }
+
+    EnviadorNotificaciones <|.. AdaptadorSmsGlobal
+    EnviadorNotificaciones <|.. AdaptadorSmsLocal
+    AdaptadorSmsGlobal ..> SmsGlobalSDK : adapta
+    AdaptadorSmsLocal ..> SmsLocalSDK : adapta
+```
+
+```mermaid
+sequenceDiagram
+    participant C as Cliente
+    participant AG as AdaptadorSmsGlobal
+    participant SG as SmsGlobalSDK
+    participant AL as AdaptadorSmsLocal
+    participant SL as SmsLocalSDK
+
+    C->>AG: enviar(destino, mensaje)
+    AG->>SG: sendMessage(destino, mensaje)
+    SG-->>AG: { status, id }
+    AG-->>C: ResultadoEnvio { enviado, proveedor, referencia }
+
+    C->>AL: enviar(destino, mensaje)
+    AL->>SL: enviarTexto({ numero, texto })
+    SL-->>AL: referencia (o excepción si falla)
+    AL-->>C: ResultadoEnvio { enviado, proveedor, referencia }
+```
+
+El cliente llama a `enviar()` igual en los dos casos; cada adaptador es el
+único que sabe cómo hablarle a su SDK real.
+
+## Archivos añadidos en esta etapa
+
+```
+src/application/notificaciones/enviador-notificaciones.ts   # Target (puerto)
+src/infrastructure/notificaciones/sms-global-sdk.ts           # Adaptee 1
+src/infrastructure/notificaciones/sms-local-sdk.ts            # Adaptee 2
+src/infrastructure/notificaciones/adaptador-sms-global.ts     # Adapter 1
+src/infrastructure/notificaciones/adaptador-sms-local.ts      # Adapter 2
+tests/adaptadores-notificaciones.test.ts                     # Pruebas del Adapter
+```
+
+---
+
 ## Autor
 Keanon Jeanpierre Angarita Olarte
