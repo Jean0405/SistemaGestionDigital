@@ -661,5 +661,172 @@ tests/adaptadores-notificaciones.test.ts                     # Pruebas del Adapt
 
 ---
 
+# ETAPA 6 — Patrón Bridge (tipo de notificación + canal)
+
+En esta etapa se sumaron los **tipos de notificación** (simple, urgente) y se
+le aplicó el patrón **Bridge**, reutilizando el mismo puerto
+`EnviadorNotificaciones` de la ETAPA 5.
+
+## En una frase
+
+Hay dos cosas que pueden variar por separado: **qué tipo** de notificación es
+(simple, urgente) y **por dónde** se envía (SMS de un proveedor u otro,
+correo). El Bridge separa esas dos jerarquías para que cada una crezca sin
+enredar a la otra.
+
+## ¿Qué es el patrón Bridge? (contado fácil)
+
+Imagina un control remoto y un televisor. Hay controles simples y controles
+con más botones; hay televisores de distintas marcas. Si cada control
+tuviera que programarse distinto para cada marca de televisor, terminarías
+con un control por cada combinación. El Bridge separa "qué botones tiene el
+control" de "cómo le habla a un televisor en concreto": el control usa una
+conexión genérica y cualquier televisor que la entienda le sirve.
+
+En este proyecto:
+
+- La **abstracción** es el tipo de notificación (`Notificacion`): define
+  *qué* hace especial a cada tipo (una urgente reintenta, una simple no).
+- La **implementación** es el canal (`EnviadorNotificaciones`): define *cómo*
+  viaja el mensaje de verdad.
+- Cada notificación **guarda una referencia a un canal** en vez de heredar de
+  él, así que cualquier tipo de notificación funciona con cualquier canal.
+
+## Los papeles del patrón en el proyecto
+
+| Papel en el patrón | En el código |
+|---|---|
+| Implementación (interfaz) | `EnviadorNotificaciones` (la misma de la ETAPA 5) |
+| Implementaciones concretas | `AdaptadorSmsGlobal`, `AdaptadorSmsLocal`, `EnviadorCorreo` |
+| Abstracción | `Notificacion` |
+| Abstracciones refinadas | `NotificacionSimple`, `NotificacionUrgente` |
+
+`NotificacionUrgente` le agrega el prefijo `"URGENTE: "` al mensaje y
+reintenta una vez si el primer envío falla; `NotificacionSimple` no le
+cambia nada al mensaje. Ninguna de las dos sabe si, por debajo, el canal es
+un SMS o un correo.
+
+## ¿Cómo incide (afecta) este patrón en el código?
+
+### Sin Bridge
+
+Si se mezclara el tipo de notificación con el canal en una sola jerarquía de
+clases, cada combinación nueva sería una clase nueva:
+`NotificacionUrgentePorSmsGlobal`, `NotificacionSimplePorCorreo`,
+`NotificacionUrgentePorCorreo`... Con 2 tipos y 3 canales ya son 6 clases, y
+crece multiplicando.
+
+### Con Bridge
+
+- **Las dos jerarquías crecen por separado**: un canal nuevo (por ejemplo,
+  notificación push) no toca ningún tipo de notificación, y un tipo nuevo
+  (por ejemplo, "programada") no toca ningún canal.
+- **No hay explosión de clases**: 2 tipos y 3 canales siguen siendo solo 5
+  clases, combinables en tiempo de ejecución.
+- **Reutiliza directamente el Adapter de la ETAPA 5**: los adaptadores de SMS
+  ya cumplen `EnviadorNotificaciones`, así que sirven tal cual como
+  implementación del Bridge.
+
+### Conexión con las etapas anteriores
+
+Tras emitir la credencial digital (ETAPA 4), se avisa con una notificación
+urgente por SMS y una simple por correo, usando el mismo mensaje:
+
+```ts
+new NotificacionUrgente(new AdaptadorSmsGlobal()).enviar(telefono, 'tu credencial ya está lista');
+new NotificacionSimple(new EnviadorCorreo()).enviar(correo, 'tu credencial ya está lista');
+```
+
+## Dónde encaja en la arquitectura hexagonal
+
+`Notificacion` y sus subclases viven en `application/notificaciones`: son
+reglas de la aplicación (qué hacer con un aviso), no dependen de ningún canal
+concreto. Los canales reales (`infrastructure/notificaciones`) son
+intercambiables porque todos cumplen el mismo puerto.
+
+## Cosas a tener en cuenta del Bridge
+
+| Punto flojo | Qué se hizo aquí |
+|---|---|
+| Puede ser exagerado si solo hubiera un tipo de notificación y un canal | Aquí hay dos tipos y tres canales reales, con más previstos (push, etc.) |
+| Se puede confundir con Adapter porque ambos "envuelven" algo | El Adapter traduce una interfaz incompatible; el Bridge separa dos jerarquías que varían juntas a propósito |
+
+## Pruebas / Testing
+
+**`tests/notificacion-bridge.test.ts`**:
+![alt text](image-1.png)
+
+| Prueba | Qué revisa |
+|---|---|
+| Independencia del canal | La misma `NotificacionSimple` funciona con SMS y con correo |
+| Prefijo urgente | `NotificacionUrgente` antepone `"URGENTE: "` al mensaje |
+| Reintento urgente | Si el canal falla una vez, `NotificacionUrgente` lo intenta de nuevo |
+
+Estado actual: **30 pruebas, todas en verde** (27 de las etapas anteriores + 3 nuevas).
+
+## UML del flujo (Bridge)
+
+```mermaid
+classDiagram
+    class EnviadorNotificaciones {
+        <<interface>>
+        +enviar(destino, mensaje) ResultadoEnvio
+    }
+    class AdaptadorSmsGlobal
+    class AdaptadorSmsLocal
+    class EnviadorCorreo
+
+    class Notificacion {
+        <<abstract>>
+        #canal: EnviadorNotificaciones
+        +enviar(destino, mensaje) ResultadoEnvio
+    }
+    class NotificacionSimple {
+        +enviar(destino, mensaje) ResultadoEnvio
+    }
+    class NotificacionUrgente {
+        +enviar(destino, mensaje) ResultadoEnvio
+    }
+
+    EnviadorNotificaciones <|.. AdaptadorSmsGlobal
+    EnviadorNotificaciones <|.. AdaptadorSmsLocal
+    EnviadorNotificaciones <|.. EnviadorCorreo
+    Notificacion o-- EnviadorNotificaciones : canal
+    Notificacion <|-- NotificacionSimple
+    Notificacion <|-- NotificacionUrgente
+```
+
+```mermaid
+sequenceDiagram
+    participant C as Cliente
+    participant N as NotificacionUrgente
+    participant Canal as canal (EnviadorNotificaciones)
+
+    C->>N: enviar(destino, mensaje)
+    N->>Canal: enviar(destino, "URGENTE: " + mensaje)
+    Canal-->>N: { enviado: false }
+    Note over N: el primer intento falló, se reintenta una vez
+    N->>Canal: enviar(destino, "URGENTE: " + mensaje)
+    Canal-->>N: { enviado: true }
+    N-->>C: { enviado: true }
+```
+
+El diagrama de clases muestra las dos jerarquías por separado (tipo de
+notificación arriba, canal abajo) unidas solo por la referencia `canal`;
+el de secuencia muestra por qué `NotificacionUrgente` necesita esa
+referencia: para reintentar sin saber qué canal hay detrás.
+
+## Archivos añadidos en esta etapa
+
+```
+src/application/notificaciones/notificacion.ts            # Abstracción
+src/application/notificaciones/notificacion-simple.ts      # Abstracción refinada
+src/application/notificaciones/notificacion-urgente.ts     # Abstracción refinada
+src/infrastructure/notificaciones/enviador-correo.ts        # Implementación concreta nueva
+tests/notificacion-bridge.test.ts                          # Pruebas del Bridge
+```
+
+---
+
 ## Autor
 Keanon Jeanpierre Angarita Olarte

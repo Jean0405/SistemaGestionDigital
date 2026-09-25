@@ -1,7 +1,7 @@
 {
   "name": "sistema-gestion-digital",
-  "version": "0.5.0",
-  "description": "Sistema de Gestión de Identidad Digital (SGID) - ETAPA 5: patrón Adapter para el envío de notificaciones (SMS)",
+  "version": "0.6.0",
+  "description": "Sistema de Gestión de Identidad Digital (SGID) - ETAPA 6: patrones Adapter y Bridge para el envío de notificaciones",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
@@ -13,6 +13,7 @@
     "factory-method",
     "builder",
     "adapter",
+    "bridge",
     "hexagonal",
     "identidad-digital",
     "typescript"
