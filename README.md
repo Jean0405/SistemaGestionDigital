@@ -828,5 +828,319 @@ tests/notificacion-bridge.test.ts                          # Pruebas del Bridge
 
 ---
 
+# ETAPA 7 — Patrón Composite (catálogo de permisos)
+
+En esta etapa se sumó un **catálogo de permisos en árbol** y se le aplicó el
+patrón **Composite**.
+
+## En una frase
+
+Un permiso puede ser algo suelto (`ver-auditoria`) o un grupo que junta varios
+permisos, incluso otros grupos (`auditoria` adentro de `permisos-administrador`).
+El Composite permite tratar a un permiso individual y a un grupo entero
+**exactamente de la misma forma**: ambos saben responder "¿me contienes a mí
+o a alguno de mis hijos?" y "lístate a ti mismo".
+
+## ¿Qué es el patrón Composite? (contado fácil)
+
+Piensa en las carpetas de un computador: una carpeta puede tener archivos
+sueltos o más carpetas adentro, y esas carpetas pueden tener más carpetas. Si
+preguntas "¿cuánto pesa esto?" no te importa si es un archivo o una carpeta
+con cien archivos dentro: la pregunta se responde igual, y por dentro cada
+carpeta se la pasa a sus hijos hasta llegar a los archivos sueltos.
+
+En código:
+
+1. Una interfaz común (`NodoPermiso`) define lo que puede hacer "cualquier
+   cosa parecida a un permiso": `contiene()` y `listar()`.
+2. La **hoja** (`PermisoSimple`) responde por sí misma.
+3. El **compuesto** (`GrupoPermisos`) no sabe nada de permisos: solo le
+   pregunta lo mismo a cada uno de sus hijos y junta las respuestas.
+
+## Los papeles del patrón en el proyecto
+
+| Papel en el patrón | En el código |
+|---|---|
+| Componente (interfaz común) | `NodoPermiso` |
+| Hoja | `PermisoSimple` |
+| Compuesto | `GrupoPermisos` |
+| Árbol ya armado | `catalogoPermisos` (ciudadano, administrador, entidad externa) |
+
+`catalogoPermisos.administrador` tiene tres niveles: el grupo
+`permisos-administrador` contiene a los grupos `identidad` y `auditoria` (que
+a su vez contienen permisos sueltos) y al permiso suelto `gestionar-roles`.
+
+## ¿Cómo incide (afecta) este patrón en el código?
+
+### Sin Composite
+
+Para saber si un rol tiene un permiso habría que recorrer a mano listas y
+sub-listas, con un `if` distinto según si el permiso viene solo o agrupado.
+Cada nivel nuevo de agrupación complicaría más esa revisión manual.
+
+### Con Composite
+
+- **Una sola operación (`contiene()`) sirve para cualquier profundidad**: no
+  importa si el permiso está suelto o a tres niveles de anidación.
+- **Agregar un grupo nuevo no cambia el código que ya consulta el catálogo**,
+  solo se arma el árbol con más `.agregar(...)`.
+- **`listar()` aplana todo el árbol a una lista plana de nombres**, útil para
+  mostrarla o guardarla, sin que quien la pide sepa cómo estaba organizada.
+
+### Conexión con las etapas anteriores
+
+El catálogo usa los mismos nombres de permisos que ya emite
+`DirectorCredenciales` (ETAPA 4: Builder) al construir una `CredencialDigital`,
+pero agrupados: por ejemplo, `ver-auditoria` es uno de los permisos que el
+Builder le da al administrador, y aquí vive dentro del grupo `auditoria`.
+
+## Dónde encaja en la arquitectura hexagonal
+
+`NodoPermiso`, `PermisoSimple` y `GrupoPermisos` viven en el **dominio**: son
+una regla de negocio pura (cómo se agrupan los permisos), sin depender de
+nada externo. El árbol ya armado (`catalogoPermisos`) vive en la
+**aplicación**, como una configuración concreta del sistema.
+
+## Cosas a tener en cuenta del Composite
+
+| Punto flojo | Qué se hizo aquí |
+|---|---|
+| Puede ser exagerado si los permisos nunca se agruparan | Aquí ya hay grupos reales (`identidad`, `auditoria`) y se esperan más |
+| Un árbol mal armado puede crecer sin control | El catálogo se arma en un solo archivo, fácil de revisar completo |
+
+## Pruebas / Testing
+
+**`tests/permisos-composite.test.ts`**:
+![alt text](image-2.png)
+
+| Prueba | Qué revisa |
+|---|---|
+| Hoja | `PermisoSimple` se busca y se lista a sí misma |
+| Composición | Un grupo agrupa hojas y otros grupos sin distinguirlos |
+| Catálogo real | Un permiso anidado dos niveles se encuentra igual que uno directo |
+
+Estado actual: **33 pruebas, todas en verde** (30 de las etapas anteriores + 3 nuevas).
+
+## UML del flujo (Composite)
+
+```mermaid
+classDiagram
+    class NodoPermiso {
+        <<interface>>
+        +nombre: string
+        +contiene(permiso) boolean
+        +listar() string[]
+    }
+    class PermisoSimple {
+        +nombre: string
+        +contiene(permiso) boolean
+        +listar() string[]
+    }
+    class GrupoPermisos {
+        +nombre: string
+        -hijos: NodoPermiso[]
+        +agregar(nodo) GrupoPermisos
+        +contiene(permiso) boolean
+        +listar() string[]
+    }
+
+    NodoPermiso <|.. PermisoSimple
+    NodoPermiso <|.. GrupoPermisos
+    GrupoPermisos o-- NodoPermiso : hijos
+```
+
+```mermaid
+sequenceDiagram
+    participant C as Cliente
+    participant Admin as GrupoPermisos("permisos-administrador")
+    participant Aud as GrupoPermisos("auditoria")
+    participant Hoja as PermisoSimple("ver-auditoria")
+
+    C->>Admin: contiene("ver-auditoria")
+    Admin->>Aud: contiene("ver-auditoria")
+    Aud->>Hoja: contiene("ver-auditoria")
+    Hoja-->>Aud: true
+    Aud-->>Admin: true
+    Admin-->>C: true
+```
+
+El cliente hace una sola llamada en la raíz del árbol; cada compuesto se
+encarga de preguntarle a sus hijos sin que el cliente sepa cuántos niveles hay.
+
+## Archivos añadidos en esta etapa
+
+```
+src/domain/permisos/nodo-permiso.ts                 # Componente (interfaz)
+src/domain/permisos/permiso-simple.ts                # Hoja
+src/domain/permisos/grupo-permisos.ts                # Compuesto
+src/application/permisos/catalogo-permisos.ts        # Árbol de permisos del sistema
+tests/permisos-composite.test.ts                    # Pruebas del Composite
+```
+
+---
+
+# ETAPA 8 — Patrón Decorator (bitácora y límite de intentos)
+
+En esta etapa se sumó la **protección de la autenticación** (registro de
+intentos y bloqueo por fuerza bruta) y se le aplicó el patrón **Decorator**,
+envolviendo los flujos de la ETAPA 3 sin modificarlos.
+
+## En una frase
+
+`AutenticadorConBitacora` y `AutenticadorConLimiteIntentos` **envuelven** a
+cualquier `FlujoAutenticacion` (contraseña, token o rostro) para agregarle
+comportamiento extra —registrar el intento, bloquear tras varios fallos—
+sin tocar ni una línea de `FlujoAutenticacion` ni de sus subclases.
+
+## ¿Qué es el patrón Decorator? (contado fácil)
+
+Piensa en un café: el café solo ya es café, pero le puedes poner una capa de
+leche, y encima otra de canela. Cada capa envuelve a la anterior y le agrega
+algo, sin que el café de adentro se entere ni tenga que cambiar de receta.
+Puedes poner las capas en el orden que quieras, o no ponerlas.
+
+En código:
+
+1. Una interfaz común (`Autenticador`) dice lo mínimo que hace falta:
+   `autenticar()`.
+2. El decorador base (`AutenticadorDecorador`) envuelve a otro `Autenticador`
+   y, si no se le agrega nada, simplemente le pasa el trabajo.
+3. Cada decorador concreto hace su parte y delega el resto al que envuelve.
+
+## Los papeles del patrón en el proyecto
+
+| Papel en el patrón | En el código |
+|---|---|
+| Componente (interfaz común) | `Autenticador` |
+| Componente concreto | Cualquier `FlujoAutenticacion` (ETAPA 3): `FlujoContrasena`, `FlujoTokenTelefono`, `FlujoRostro` |
+| Decorador base | `AutenticadorDecorador` |
+| Decoradores concretos | `AutenticadorConBitacora`, `AutenticadorConLimiteIntentos` |
+
+`FlujoAutenticacion` ya tenía el método `autenticar()` desde la ETAPA 3;
+como la interfaz `Autenticador` solo pide esa misma forma, cualquier flujo
+existente encaja como componente del Decorator **sin cambiarle nada**.
+
+## ¿Cómo incide (afecta) este patrón en el código?
+
+### Sin Decorator
+
+La bitácora y el límite de intentos tendrían que escribirse dentro de
+`FlujoAutenticacion` o de cada flujo concreto, mezclando la regla de "cómo se
+autentica" con la de "cómo se audita" y "cuándo se bloquea". Si mañana no se
+quisiera el límite de intentos en algún caso, habría que agregar banderas o
+condicionales para desactivarlo.
+
+### Con Decorator
+
+- **Los flujos de la ETAPA 3 no se tocan**: siguen siendo solo "cómo se
+  verifica un factor".
+- **Cada comportamiento extra vive en su propio archivo**, y se agrega
+  envolviendo, no heredando ni modificando.
+- **Se combinan en el orden que haga falta**:
+  `new AutenticadorConBitacora(new AutenticadorConLimiteIntentos(flujo))`.
+  Se puede usar uno solo, los dos, o ninguno.
+
+### Conexión con las etapas anteriores
+
+El decorador envuelve directamente un creador de la ETAPA 3 (Factory Method),
+sin saber qué factor hay detrás:
+
+```ts
+const protegido = new AutenticadorConBitacora(
+  new AutenticadorConLimiteIntentos(new FlujoContrasena('clave-del-ciudadano'), 2),
+);
+```
+
+## Dónde encaja en la arquitectura hexagonal
+
+`Autenticador`, `AutenticadorDecorador` y los decoradores concretos viven en
+`application/auth`, junto a los flujos que envuelven: son reglas de la
+aplicación (auditoría, control de acceso), no dependen de infraestructura.
+
+## Cosas a tener en cuenta del Decorator
+
+| Punto flojo | Qué se hizo aquí |
+|---|---|
+| Envolver de más puede ocultar qué autenticador hay realmente adentro | Cada decorador delega explícitamente con `super.autenticar()`, fácil de seguir |
+| El bloqueo de esta etapa no tiene forma de "desbloquear" | Se dejó simple a propósito; un contador con expiración sería el siguiente paso natural |
+
+## Pruebas / Testing
+
+**`tests/autenticador-decoradores.test.ts`**:
+![alt text](image-3.png)
+
+| Prueba | Qué revisa |
+|---|---|
+| Bitácora | Registra cada intento sin cambiar el resultado del autenticador original |
+| Límite de intentos | Bloquea tras varios fallos seguidos, incluso si luego llega la clave correcta |
+| Combinación | Los decoradores se pueden apilar sin que el flujo original se entere |
+
+Estado actual: **36 pruebas, todas en verde** (33 de las etapas anteriores + 3 nuevas).
+
+## UML del flujo (Decorator)
+
+```mermaid
+classDiagram
+    class Autenticador {
+        <<interface>>
+        +autenticar(valorPresentado) ResultadoAutenticacion
+    }
+    class FlujoAutenticacion {
+        <<abstract>>
+        +autenticar(valorPresentado) ResultadoAutenticacion
+    }
+    class AutenticadorDecorador {
+        <<abstract>>
+        #interno: Autenticador
+        +autenticar(valorPresentado) ResultadoAutenticacion
+    }
+    class AutenticadorConBitacora {
+        +bitacora: string[]
+        +autenticar(valorPresentado) ResultadoAutenticacion
+    }
+    class AutenticadorConLimiteIntentos {
+        -fallosSeguidos: number
+        +autenticar(valorPresentado) ResultadoAutenticacion
+    }
+
+    Autenticador <|.. FlujoAutenticacion
+    Autenticador <|.. AutenticadorDecorador
+    AutenticadorDecorador o-- Autenticador : interno
+    AutenticadorDecorador <|-- AutenticadorConBitacora
+    AutenticadorDecorador <|-- AutenticadorConLimiteIntentos
+```
+
+```mermaid
+sequenceDiagram
+    participant C as Cliente
+    participant Bit as AutenticadorConBitacora
+    participant Lim as AutenticadorConLimiteIntentos
+    participant F as FlujoContrasena
+
+    C->>Bit: autenticar("clave-mala")
+    Bit->>Lim: autenticar("clave-mala")
+    Lim->>F: autenticar("clave-mala")
+    F-->>Lim: { autenticado: false }
+    Note over Lim: primer fallo, todavía no bloquea
+    Lim-->>Bit: { autenticado: false }
+    Bit-->>C: { autenticado: false }
+    Note over Bit: queda registrado en la bitácora
+```
+
+Cada capa solo sabe de la capa que envuelve; `FlujoContrasena` nunca se entera
+de que existen la bitácora ni el límite de intentos.
+
+## Archivos añadidos en esta etapa
+
+```
+src/application/auth/autenticador.ts                     # Componente (interfaz)
+src/application/auth/autenticador-decorador.ts             # Decorador base
+src/application/auth/autenticador-con-bitacora.ts          # Decorador concreto
+src/application/auth/autenticador-con-limite-intentos.ts   # Decorador concreto
+tests/autenticador-decoradores.test.ts                    # Pruebas del Decorator
+```
+
+---
+
 ## Autor
 Keanon Jeanpierre Angarita Olarte

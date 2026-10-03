@@ -5,6 +5,8 @@
  * ETAPA 4: Builder (emisión de la credencial digital).
  * ETAPA 5: Adapter (envío de SMS con dos proveedores distintos).
  * ETAPA 6: Bridge (tipo de notificación + canal, por separado).
+ * ETAPA 7: Composite (catálogo de permisos en árbol).
+ * ETAPA 8: Decorator (bitácora y límite de intentos en la autenticación).
  */
 import { ConfigManager } from './infrastructure/config/config-manager';
 import { FlujoAutenticacion } from './application/auth/flujo-autenticacion';
@@ -17,6 +19,9 @@ import { AdaptadorSmsLocal } from './infrastructure/notificaciones/adaptador-sms
 import { EnviadorCorreo } from './infrastructure/notificaciones/enviador-correo';
 import { NotificacionSimple } from './application/notificaciones/notificacion-simple';
 import { NotificacionUrgente } from './application/notificaciones/notificacion-urgente';
+import { catalogoPermisos } from './application/permisos/catalogo-permisos';
+import { AutenticadorConBitacora } from './application/auth/autenticador-con-bitacora';
+import { AutenticadorConLimiteIntentos } from './application/auth/autenticador-con-limite-intentos';
 
 const config = ConfigManager.getInstance();
 console.log(`SGID iniciando en entorno "${config.obtener('entorno')}"`);
@@ -62,3 +67,20 @@ if (todoOk) {
   console.log('  ', avisoUrgentePorSms.enviar('3001234567', 'tu credencial ya está lista'));
   console.log('  ', avisoSimplePorCorreo.enviar('ana@sgid.gov', 'tu credencial ya está lista'));
 }
+
+// Un permiso suelto o un grupo entero se consultan igual (Composite, ETAPA 7).
+console.log('\nPermisos del administrador:');
+console.log('  total:', catalogoPermisos.administrador.listar());
+console.log('  ¿incluye ver-auditoria?', catalogoPermisos.administrador.contiene('ver-auditoria'));
+console.log('  ¿incluye validar-identidad-externa?', catalogoPermisos.administrador.contiene('validar-identidad-externa'));
+
+// La contraseña se protege con bitácora + límite de intentos, sin tocar FlujoContrasena (Decorator, ETAPA 8).
+console.log('\nAutenticación protegida con decoradores:');
+const contrasenaProtegida = new AutenticadorConBitacora(
+  new AutenticadorConLimiteIntentos(new FlujoContrasena('clave-del-ciudadano'), 2),
+);
+['clave-mala', 'clave-mala', 'clave-del-ciudadano'].forEach((intento) => {
+  const r = contrasenaProtegida.autenticar(intento);
+  console.log(`  intento "${intento}" -> autenticado=${r.autenticado} · ${r.motivo}`);
+});
+console.log('  bitácora:', contrasenaProtegida.bitacora);

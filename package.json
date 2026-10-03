@@ -1,7 +1,7 @@
 {
   "name": "sistema-gestion-digital",
-  "version": "0.6.0",
-  "description": "Sistema de Gestión de Identidad Digital (SGID) - ETAPA 6: patrones Adapter y Bridge para el envío de notificaciones",
+  "version": "0.8.0",
+  "description": "Sistema de Gestión de Identidad Digital (SGID) - ETAPA 8: patrones Composite y Decorator para permisos y autenticación",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
@@ -14,6 +14,8 @@
     "builder",
     "adapter",
     "bridge",
+    "composite",
+    "decorator",
     "hexagonal",
     "identidad-digital",
     "typescript"
