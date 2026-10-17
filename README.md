@@ -84,15 +84,34 @@ Más allá de las funcionalidades propias del sistema, se tuvieron en cuenta cie
 ```bash
 npm install   # instalar dependencias
 npm test      # correr las 42 pruebas
-npm start     # compilar y ejecutar la demostración de las 9 etapas, de punta a punta
+npm start     # compilar y ejecutar la demostración de las 10 etapas, de punta a punta
 ```
 
-`npm start` recorre, en orden, las diez etapas: arranca la configuración,
-envía el código de seguridad, autentica con los tres factores, emite la
-credencial, avisa que está lista, consulta la identidad a través del proxy,
-revisa los permisos del administrador, prueba la autenticación protegida y
-comparte los tipos de documento. El detalle de cada patrón está en las
-secciones de abajo.
+`npm start` recorre, en orden, las diez etapas con datos fijos: arranca la
+configuración, envía el código de seguridad, autentica con los tres factores,
+emite la credencial, avisa que está lista, consulta la identidad a través del
+proxy, revisa los permisos del administrador, prueba la autenticación
+protegida y comparte los tipos de documento. El detalle de cada patrón está
+en las secciones de abajo.
+
+## Demo en vivo (datos escritos por quien prueba)
+
+`npm start` siempre usa los mismos valores, útil para ver rápido que todo
+funciona pero no para mostrarlo en vivo. Para eso está `npm run demo`: hace
+las mismas preguntas pero las responde quien esté probando el sistema (tú o
+el docente), por consola:
+
+```bash
+npm run demo
+```
+
+Pide, en orden: la contraseña (hasta 3 intentos, protegidos con el límite de
+la ETAPA 8), el código enviado al teléfono, un puntaje facial entre 0 y 1, un
+permiso a buscar en el catálogo de administrador (ETAPA 7) y un número de
+cédula a validar (ETAPA 9). Al arrancar, la demo muestra en pantalla cuál es
+la contraseña y el código "registrados", para poder probar tanto el caso que
+funciona como el que falla (contraseña mala, código vencido, puntaje bajo,
+etc.) sin tener que leer el código fuente.
 
 ---
 
