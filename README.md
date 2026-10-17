@@ -616,7 +616,7 @@ literalmente, la misma idea: `EnviadorNotificaciones` es el **puerto**
 ## Pruebas / Testing
 
 **`tests/adaptadores-notificaciones.test.ts`**:
-![alt text](image.png)
+![alt text](/docs/img/image-2.png)
 
 | Prueba | Qué revisa |
 |---|---|
@@ -783,7 +783,7 @@ intercambiables porque todos cumplen el mismo puerto.
 ## Pruebas / Testing
 
 **`tests/notificacion-bridge.test.ts`**:
-![alt text](image-1.png)
+![alt text](/docs/img/image-3.png)
 
 | Prueba | Qué revisa |
 |---|---|
@@ -940,7 +940,7 @@ nada externo. El árbol ya armado (`catalogoPermisos`) vive en la
 ## Pruebas / Testing
 
 **`tests/permisos-composite.test.ts`**:
-![alt text](image-2.png)
+![alt text](/docs/img/image-4.png)
 
 | Prueba | Qué revisa |
 |---|---|
@@ -1096,7 +1096,7 @@ aplicación (auditoría, control de acceso), no dependen de infraestructura.
 ## Pruebas / Testing
 
 **`tests/autenticador-decoradores.test.ts`**:
-![alt text](image-3.png)
+![alt text](/docs/img/image-5.png)
 
 | Prueba | Qué revisa |
 |---|---|
