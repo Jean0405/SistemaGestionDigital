@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SGID — Sistema de Gestión de Identidad Digital</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="encabezado">
+    <div class="encabezado__marca">
+      <span class="escudo">🛡️</span>
+      <div>
+        <strong>SGID</strong>
+        <span>Sistema de Gestión de Identidad Digital</span>
+      </div>
+    </div>
+    <button id="btn-reset" class="boton boton--fantasma">Reiniciar demo</button>
+  </header>
+
+  <main class="contenedor">
+    <!-- Paso 1: Adapter -->
+    <section class="tarjeta">
+      <h2>1. Envío del código de seguridad <span class="patron">Adapter</span></h2>
+      <p class="ayuda">Se envía por dos proveedores de SMS con interfaces distintas, ambos adaptados a una sola forma de uso.</p>
+      <button id="btn-enviar-sms" class="boton">Enviar código al teléfono</button>
+      <div id="resultado-sms" class="resultado"></div>
+    </section>
+
+    <!-- Paso 2: Factory Method + Decorator -->
+    <section class="tarjeta">
+      <h2>2. Autenticación multifactor <span class="patron">Factory Method</span> <span class="patron">Decorator</span></h2>
+      <p class="ayuda">La contraseña real es <code>clave-del-ciudadano</code> y el código ya enviado es <code>482913</code> (para poder probar valores buenos y malos). Tres intentos de contraseña antes del bloqueo.</p>
+
+      <div class="factor">
+        <label for="in-contrasena">Contraseña</label>
+        <div class="factor__fila">
+          <input id="in-contrasena" type="password" placeholder="Escribe la contraseña" />
+          <button id="btn-contrasena" class="boton">Verificar</button>
+        </div>
+        <div id="estado-contrasena" class="estado"></div>
+      </div>
+
+      <div class="factor">
+        <label for="in-token">Código recibido por SMS</label>
+        <div class="factor__fila">
+          <input id="in-token" type="text" placeholder="Código de 6 dígitos" />
+          <button id="btn-token" class="boton">Verificar</button>
+        </div>
+        <div id="estado-token" class="estado"></div>
+      </div>
+
+      <div class="factor">
+        <label for="in-rostro">Puntaje facial (0 a 1)</label>
+        <div class="factor__fila">
+          <input id="in-rostro" type="text" placeholder="ej: 0.9" />
+          <button id="btn-rostro" class="boton">Verificar</button>
+        </div>
+        <div id="estado-rostro" class="estado"></div>
+      </div>
+
+      <div class="factor">
+        <label>Bitácora de la contraseña</label>
+        <ul id="bitacora" class="bitacora"></ul>
+      </div>
+    </section>
+
+    <!-- Paso 3: Builder + Bridge -->
+    <section class="tarjeta">
+      <h2>3. Emisión de la credencial digital <span class="patron">Builder</span> <span class="patron">Bridge</span></h2>
+      <div class="factor__fila">
+        <select id="in-rol">
+          <option value="ciudadano">Ciudadano</option>
+          <option value="administrador">Administrador</option>
+          <option value="entidadExterna">Entidad externa</option>
+        </select>
+        <button id="btn-emitir" class="boton">Emitir credencial</button>
+      </div>
+      <div id="resultado-credencial" class="resultado"></div>
+    </section>
+
+    <!-- Paso 4: Proxy -->
+    <section class="tarjeta">
+      <h2>4. Consulta de identidad protegida <span class="patron">Proxy</span></h2>
+      <p class="ayuda">Solo responde si la credencial emitida arriba tiene el permiso <code>consultar-identidad</code>.</p>
+      <button id="btn-identidad" class="boton">Consultar identidad</button>
+      <div id="resultado-identidad" class="resultado"></div>
+    </section>
+
+    <!-- Paso 5: Composite -->
+    <section class="tarjeta">
+      <h2>5. Catálogo de permisos <span class="patron">Composite</span></h2>
+      <div class="factor__fila">
+        <select id="in-rol-permiso">
+          <option value="ciudadano">Ciudadano</option>
+          <option value="administrador" selected>Administrador</option>
+          <option value="entidadExterna">Entidad externa</option>
+        </select>
+        <input id="in-permiso" type="text" placeholder="ej: ver-auditoria" />
+        <button id="btn-permiso" class="boton">Verificar</button>
+      </div>
+      <div id="resultado-permiso" class="resultado"></div>
+    </section>
+
+    <!-- Paso 6: Flyweight -->
+    <section class="tarjeta">
+      <h2>6. Validar documento <span class="patron">Flyweight</span></h2>
+      <div class="factor__fila">
+        <input id="in-documento" type="text" placeholder="Número de cédula" />
+        <button id="btn-documento" class="boton">Validar</button>
+      </div>
+      <div id="resultado-documento" class="resultado"></div>
+    </section>
+  </main>
+
+  <footer class="pie">
+    Proyecto académico SGID · patrones: Singleton · Factory Method · Builder · Adapter · Bridge · Composite · Decorator · Flyweight · Proxy
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

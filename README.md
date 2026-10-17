@@ -85,6 +85,7 @@ Más allá de las funcionalidades propias del sistema, se tuvieron en cuenta cie
 npm install   # instalar dependencias
 npm test      # correr las 42 pruebas
 npm start     # compilar y ejecutar la demostración de las 10 etapas, de punta a punta
+npm run web   # levantar la interfaz web en http://localhost:3000, para probar en vivo
 ```
 
 `npm start` recorre, en orden, las diez etapas con datos fijos: arranca la
@@ -94,24 +95,36 @@ proxy, revisa los permisos del administrador, prueba la autenticación
 protegida y comparte los tipos de documento. El detalle de cada patrón está
 en las secciones de abajo.
 
-## Demo en vivo (datos escritos por quien prueba)
+## Demo en vivo (interfaz web)
 
 `npm start` siempre usa los mismos valores, útil para ver rápido que todo
-funciona pero no para mostrarlo en vivo. Para eso está `npm run demo`: hace
-las mismas preguntas pero las responde quien esté probando el sistema (tú o
-el docente), por consola:
+funciona pero no para mostrarlo en vivo. Para eso hay una página web local
+que pide los datos reales (tú o el docente los escriben) y por debajo llama
+a las mismas clases de cada patrón:
+
+```bash
+npm run web
+```
+
+Abre **http://localhost:3000** en el navegador. La página tiene un paso por
+cada patrón: enviar el código de seguridad (Adapter), autenticar con los tres
+factores (Factory Method + Decorator, con bitácora y límite de intentos
+visibles), emitir la credencial elegida por rol (Builder + Bridge), consultar
+la identidad protegida (Proxy), revisar el catálogo de permisos (Composite) y
+validar un número de documento (Flyweight). Un botón "Reiniciar demo" permite
+repetir todo sin apagar el servidor.
+
+La contraseña registrada es `clave-del-ciudadano` y el código ya enviado es
+`482913` (se muestran en la propia página), para poder probar tanto el caso
+que funciona como el que falla.
+
+El servidor (`src/web/server.ts`, con Express) no agrega lógica nueva: solo
+expone por HTTP las mismas clases que usan `index.ts` y `demo-interactivo.ts`.
+Este último sigue disponible como alternativa por consola:
 
 ```bash
 npm run demo
 ```
-
-Pide, en orden: la contraseña (hasta 3 intentos, protegidos con el límite de
-la ETAPA 8), el código enviado al teléfono, un puntaje facial entre 0 y 1, un
-permiso a buscar en el catálogo de administrador (ETAPA 7) y un número de
-cédula a validar (ETAPA 9). Al arrancar, la demo muestra en pantalla cuál es
-la contraseña y el código "registrados", para poder probar tanto el caso que
-funciona como el que falla (contraseña mala, código vencido, puntaje bajo,
-etc.) sin tener que leer el código fuente.
 
 ---
 
