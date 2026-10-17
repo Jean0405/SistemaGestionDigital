@@ -126,11 +126,13 @@ con datos reales en vez de valores ya conocidos de antemano:
   persona para ver que sí distingue. **Requiere permiso de cámara e internet**
   (face-api.js se carga desde un CDN la primera vez).
 
-Después de pasar los tres factores: emitir la credencial elegida por rol
-(Builder + Bridge), consultar la identidad protegida (Proxy), revisar el
-catálogo de permisos (Composite) y validar un número de documento
-(Flyweight). Un botón "Reiniciar demo" permite repetir todo sin apagar el
-servidor.
+Después de pasar los tres factores, el botón **"Iniciar sesión"** arma tu
+perfil completo de una sola vez: emite la credencial por tu rol (Builder),
+avisa que está lista (Bridge), consulta tu identidad solo si tienes permiso
+(Proxy), revisa los accesos agrupados de tu rol (Composite) y valida tu
+documento (Flyweight). No son botones sueltos por patrón: es un único caso
+de uso ("entrar al sistema") que por debajo combina los cinco. Un botón
+"Reiniciar demo" permite repetir todo sin apagar el servidor.
 
 **Sobre el umbral facial:** una distancia real entre dos fotos de la misma
 persona casi nunca es 0; el umbral por defecto (`BIOMETRIA_UMBRAL=0.85`,

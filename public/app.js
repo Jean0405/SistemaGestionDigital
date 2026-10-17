@@ -196,7 +196,8 @@ umbral mínimo configurado: ${umbralFacial}</pre>`;
   }
 });
 
-// --- Builder + Bridge ---
+// --- Iniciar sesión: arma el perfil completo de una sola vez ---
+// (Builder + Bridge + Proxy + Composite + Flyweight, combinados en una sola respuesta)
 
 document.getElementById('btn-emitir').addEventListener('click', async () => {
   const rol = document.getElementById('in-rol').value;
@@ -213,42 +214,24 @@ document.getElementById('btn-emitir').addEventListener('click', async () => {
   }
 
   const c = datos.credencial;
+  const identidadHtml = datos.identidad.error
+    ? `<p class="estado estado--error">Identidad: ${datos.identidad.error}</p>`
+    : `<p><strong>Identidad verificada:</strong> ${datos.identidad.nombreCompleto} · documento ${datos.identidad.documento}
+        ${datos.documento ? `(${datos.documento.valido ? 'válido ✅' : 'inválido ❌'})` : ''}</p>`;
+
   destino.innerHTML = `
     <div class="credencial">
       <h3>🪪 Credencial digital — ${c.rol}</h3>
       <dl>
         <dt>Titular</dt><dd>${c.nombreCompleto} (${c.usuarioId})</dd>
-        <dt>Permisos</dt><dd>${c.permisos.join(', ')}</dd>
         <dt>Factores</dt><dd>${c.factoresSuperados.join(', ')}</dd>
         <dt>Expira</dt><dd>${new Date(c.expiraEn).toLocaleTimeString()}</dd>
       </dl>
+      ${identidadHtml}
+      <p><strong>Accesos de tu rol:</strong> ${datos.accesos.join(', ')}</p>
     </div>
     <pre>Aviso SMS: ${JSON.stringify(datos.avisos.sms)}\nAviso correo: ${JSON.stringify(datos.avisos.correo)}</pre>
   `;
-});
-
-// --- Proxy ---
-
-document.getElementById('btn-identidad').addEventListener('click', async () => {
-  const datos = await pedir('/api/identidad');
-  pintarJson(document.getElementById('resultado-identidad'), datos);
-});
-
-// --- Composite ---
-
-document.getElementById('btn-permiso').addEventListener('click', async () => {
-  const rol = document.getElementById('in-rol-permiso').value;
-  const permiso = document.getElementById('in-permiso').value;
-  const datos = await pedir(`/api/permisos?rol=${encodeURIComponent(rol)}&permiso=${encodeURIComponent(permiso)}`);
-  pintarJson(document.getElementById('resultado-permiso'), datos);
-});
-
-// --- Flyweight ---
-
-document.getElementById('btn-documento').addEventListener('click', async () => {
-  const numero = document.getElementById('in-documento').value;
-  const datos = await pedir(`/api/documento/${encodeURIComponent(numero)}`);
-  pintarJson(document.getElementById('resultado-documento'), datos);
 });
 
 // --- Reiniciar ---

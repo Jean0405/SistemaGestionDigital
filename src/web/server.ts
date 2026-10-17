@@ -5,6 +5,10 @@
  * (index.ts, demo-interactivo.ts); no hay lógica de negocio nueva aquí,
  * salvo el cálculo de similitud facial (ver distanciaEuclidiana más abajo),
  * que es lo único que no estaba resuelto por una clase existente.
+ *
+ * La aplicación es una sola: "autenticarse y entrar al sistema". Los
+ * patrones no tienen cada uno su propio botón de prueba; se combinan para
+ * resolver ese único caso de uso (ver /api/credencial/emitir más abajo).
  */
 import express from 'express';
 import path from 'path';
@@ -157,7 +161,12 @@ app.post('/api/auth/rostro/verificar', (req, res) => {
   res.json({ ...resultado, distancia, puntaje });
 });
 
-// --- Builder (ETAPA 4) + Bridge (ETAPA 6): emitir la credencial y avisar ---
+// --- Iniciar sesión: con los 3 factores superados, se arma el perfil completo de una vez ---
+//
+// Esto es un solo caso de uso ("entrar al sistema"), no una lista de patrones para probar
+// por separado: Builder arma la credencial, Bridge avisa que está lista, Proxy consulta la
+// identidad protegida por esa misma credencial, Composite dice qué grupos de permisos trae
+// el rol y Flyweight valida el documento de esa identidad. Todo en una sola respuesta.
 
 app.post('/api/credencial/emitir', (req, res) => {
   if (sesion.factoresSuperados.length < 3) {
@@ -179,40 +188,27 @@ app.post('/api/credencial/emitir', (req, res) => {
   const avisoSms = new NotificacionUrgente(new AdaptadorSmsGlobal()).enviar('3001234567', 'tu credencial ya está lista');
   const avisoCorreo = new NotificacionSimple(new EnviadorCorreo()).enviar('ana@sgid.gov', 'tu credencial ya está lista');
 
-  res.json({ credencial, avisos: { sms: avisoSms, correo: avisoCorreo } });
-});
-
-// --- Proxy (ETAPA 10): solo responde si la credencial emitida tiene el permiso ---
-
-app.get('/api/identidad', (_req, res) => {
-  if (!sesion.credencial) {
-    res.status(400).json({ error: 'Todavía no se ha emitido una credencial.' });
-    return;
-  }
-
+  let identidad = null;
+  let errorIdentidad: string | null = null;
   try {
-    const proxy = new RepositorioIdentidadProxy(new RepositorioIdentidadMemoria(), sesion.credencial);
-    res.json(proxy.obtener('ciudadano-001'));
+    identidad = new RepositorioIdentidadProxy(new RepositorioIdentidadMemoria(), credencial).obtener('ciudadano-001');
   } catch (error) {
-    res.status(403).json({ error: (error as Error).message });
+    errorIdentidad = (error as Error).message;
   }
-});
 
-// --- Composite (ETAPA 7): un permiso o un grupo entero se consultan igual ---
+  const documento = identidad
+    ? { numero: identidad.documento, valido: new DocumentoIdentidad(FabricaTiposDocumento.obtener('CC'), identidad.documento, identidad.nombreCompleto).esValido() }
+    : null;
 
-app.get('/api/permisos', (req, res) => {
-  const rol = String(req.query.rol ?? 'administrador') as keyof typeof catalogoPermisos;
-  const permiso = String(req.query.permiso ?? '');
-  const catalogo = catalogoPermisos[rol] ?? catalogoPermisos.administrador;
+  const accesos = (catalogoPermisos[rol] ?? catalogoPermisos.ciudadano).listar();
 
-  res.json({ todos: catalogo.listar(), incluye: permiso ? catalogo.contiene(permiso) : null });
-});
-
-// --- Flyweight (ETAPA 9): valida un número de documento compartiendo el mismo TipoDocumento ---
-
-app.get('/api/documento/:numero', (req, res) => {
-  const documento = new DocumentoIdentidad(FabricaTiposDocumento.obtener('CC'), req.params.numero, 'Ana Pérez');
-  res.json({ valido: documento.esValido(), tiposCreados: FabricaTiposDocumento.cantidadCreados() });
+  res.json({
+    credencial,
+    avisos: { sms: avisoSms, correo: avisoCorreo },
+    identidad: identidad ?? { error: errorIdentidad },
+    documento,
+    accesos,
+  });
 });
 
 // Permite repetir la demo sin reiniciar el servidor.

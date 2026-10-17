@@ -111,52 +111,25 @@
       <div id="detalle-rostro" class="resultado"></div>
     </section>
 
-    <!-- Builder + Bridge -->
+    <!-- Un solo caso de uso: iniciar sesión. Por debajo combina Builder, Bridge, Proxy, Composite y Flyweight. -->
     <section class="tarjeta">
-      <h2>Emisión de la credencial digital <span class="patron">Builder</span> <span class="patron">Bridge</span></h2>
-      <p class="ayuda">Disponible cuando los tres factores de arriba estén en verde.</p>
+      <h2>🚪 Iniciar sesión <span class="patron">Builder</span> <span class="patron">Bridge</span> <span class="patron">Proxy</span> <span class="patron">Composite</span> <span class="patron">Flyweight</span></h2>
+      <p class="ayuda">
+        Disponible cuando los tres factores de arriba estén en verde. Con un
+        solo clic se emite tu credencial, se avisa que está lista, se
+        consulta tu identidad (solo si tienes permiso), se revisan los
+        accesos de tu rol y se valida tu documento: todo es un único perfil,
+        no pasos sueltos.
+      </p>
       <div class="factor__fila">
         <select id="in-rol">
           <option value="ciudadano">Ciudadano</option>
           <option value="administrador">Administrador</option>
           <option value="entidadExterna">Entidad externa</option>
         </select>
-        <button id="btn-emitir" class="boton">Emitir credencial</button>
+        <button id="btn-emitir" class="boton">Iniciar sesión</button>
       </div>
       <div id="resultado-credencial" class="resultado"></div>
-    </section>
-
-    <!-- Proxy -->
-    <section class="tarjeta">
-      <h2>Consulta de identidad protegida <span class="patron">Proxy</span></h2>
-      <p class="ayuda">Solo responde si la credencial emitida arriba tiene el permiso <code>consultar-identidad</code>.</p>
-      <button id="btn-identidad" class="boton">Consultar identidad</button>
-      <div id="resultado-identidad" class="resultado"></div>
-    </section>
-
-    <!-- Composite -->
-    <section class="tarjeta">
-      <h2>Catálogo de permisos <span class="patron">Composite</span></h2>
-      <div class="factor__fila">
-        <select id="in-rol-permiso">
-          <option value="ciudadano">Ciudadano</option>
-          <option value="administrador" selected>Administrador</option>
-          <option value="entidadExterna">Entidad externa</option>
-        </select>
-        <input id="in-permiso" type="text" placeholder="ej: ver-auditoria" />
-        <button id="btn-permiso" class="boton">Verificar</button>
-      </div>
-      <div id="resultado-permiso" class="resultado"></div>
-    </section>
-
-    <!-- Flyweight -->
-    <section class="tarjeta">
-      <h2>Validar documento <span class="patron">Flyweight</span></h2>
-      <div class="factor__fila">
-        <input id="in-documento" type="text" placeholder="Número de cédula" />
-        <button id="btn-documento" class="boton">Validar</button>
-      </div>
-      <div id="resultado-documento" class="resultado"></div>
     </section>
   </main>
 
