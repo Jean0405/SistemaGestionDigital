@@ -19,55 +19,92 @@
   </header>
 
   <main class="contenedor">
-    <!-- Paso 1: Adapter -->
-    <section class="tarjeta">
-      <h2>1. Envío del código de seguridad <span class="patron">Adapter</span></h2>
-      <p class="ayuda">Se envía por dos proveedores de SMS con interfaces distintas, ambos adaptados a una sola forma de uso.</p>
-      <button id="btn-enviar-sms" class="boton">Enviar código al teléfono</button>
-      <div id="resultado-sms" class="resultado"></div>
+    <section class="tarjeta tarjeta--intro">
+      <p>
+        Cada factor se prueba en <strong>dos pasos</strong>: primero lo
+        <strong>registras</strong> (como la primera vez que configuras tu cuenta)
+        y luego intentas <strong>autenticarte</strong> con él. Nada viene
+        precargado: la contraseña la eliges tú, el código llega al azar y el
+        rostro se captura con tu cámara real.
+      </p>
     </section>
 
-    <!-- Paso 2: Factory Method + Decorator -->
+    <!-- Contraseña: Factory Method + Decorator -->
     <section class="tarjeta">
-      <h2>2. Autenticación multifactor <span class="patron">Factory Method</span> <span class="patron">Decorator</span></h2>
-      <p class="ayuda">La contraseña real es <code>clave-del-ciudadano</code> y el código ya enviado es <code>482913</code> (para poder probar valores buenos y malos). Tres intentos de contraseña antes del bloqueo.</p>
+      <h2>🔑 Contraseña <span class="patron">Factory Method</span> <span class="patron">Decorator</span></h2>
+      <p class="ayuda">El Decorator agrega una bitácora y bloquea el factor tras 3 fallos seguidos.</p>
 
       <div class="factor">
-        <label for="in-contrasena">Contraseña</label>
+        <label for="in-contrasena-registro">1. Registrar una contraseña nueva</label>
         <div class="factor__fila">
-          <input id="in-contrasena" type="password" placeholder="Escribe la contraseña" />
-          <button id="btn-contrasena" class="boton">Verificar</button>
+          <input id="in-contrasena-registro" type="password" placeholder="Elige una contraseña" />
+          <button id="btn-contrasena-registrar" class="boton boton--secundario">Registrar</button>
         </div>
-        <div id="estado-contrasena" class="estado"></div>
+        <div id="estado-registro-contrasena" class="estado"></div>
       </div>
 
       <div class="factor">
-        <label for="in-token">Código recibido por SMS</label>
+        <label for="in-contrasena">2. Iniciar sesión con esa contraseña</label>
+        <div class="factor__fila">
+          <input id="in-contrasena" type="password" placeholder="Escribe la contraseña para entrar" />
+          <button id="btn-contrasena" class="boton">Iniciar sesión</button>
+        </div>
+        <div id="estado-contrasena" class="estado"></div>
+        <ul id="bitacora" class="bitacora"></ul>
+      </div>
+    </section>
+
+    <!-- Token: Adapter -->
+    <section class="tarjeta">
+      <h2>📱 Código al teléfono <span class="patron">Adapter</span></h2>
+      <p class="ayuda">El código se genera al azar y se "envía" por dos proveedores de SMS con interfaces distintas, adaptados a una sola forma de uso. Para verlo hay que revisar la bandeja, igual que en un teléfono real.</p>
+
+      <div class="factor">
+        <label>1. Enviar el código</label>
+        <div class="factor__fila">
+          <button id="btn-enviar-sms" class="boton boton--secundario">Enviar código</button>
+          <button id="btn-ver-sms" class="boton boton--secundario">📬 Ver bandeja del teléfono</button>
+        </div>
+        <div id="resultado-sms" class="resultado"></div>
+        <div id="bandeja-sms" class="estado"></div>
+      </div>
+
+      <div class="factor">
+        <label for="in-token">2. Escribir el código recibido</label>
         <div class="factor__fila">
           <input id="in-token" type="text" placeholder="Código de 6 dígitos" />
           <button id="btn-token" class="boton">Verificar</button>
         </div>
         <div id="estado-token" class="estado"></div>
       </div>
-
-      <div class="factor">
-        <label for="in-rostro">Puntaje facial (0 a 1)</label>
-        <div class="factor__fila">
-          <input id="in-rostro" type="text" placeholder="ej: 0.9" />
-          <button id="btn-rostro" class="boton">Verificar</button>
-        </div>
-        <div id="estado-rostro" class="estado"></div>
-      </div>
-
-      <div class="factor">
-        <label>Bitácora de la contraseña</label>
-        <ul id="bitacora" class="bitacora"></ul>
-      </div>
     </section>
 
-    <!-- Paso 3: Builder + Bridge -->
+    <!-- Rostro: cámara real -->
     <section class="tarjeta">
-      <h2>3. Emisión de la credencial digital <span class="patron">Builder</span> <span class="patron">Bridge</span></h2>
+      <h2>🙂 Rostro (cámara real) <span class="patron">Factory Method</span></h2>
+      <p class="ayuda">
+        Usa tu propia cámara. El navegador calcula un "descriptor" de tu rostro
+        (una huella matemática, no una foto) y el servidor compara qué tan
+        parecidos son el registro y el intento. Pruébalo contigo mismo y
+        después con otra persona, para ver que sí distingue. Umbral mínimo
+        configurado (ETAPA 2, <code>BIOMETRIA_UMBRAL</code>): <strong id="umbral-facial">...</strong>
+      </p>
+
+      <video id="video" width="280" height="210" autoplay muted playsinline></video>
+
+      <div class="factor__fila factor__fila--camara">
+        <button id="btn-camara" class="boton boton--secundario">Activar cámara</button>
+        <button id="btn-rostro-registrar" class="boton boton--secundario" disabled>1. Registrar rostro</button>
+        <button id="btn-rostro" class="boton" disabled>2. Verificar rostro</button>
+      </div>
+      <div id="estado-rostro" class="estado"></div>
+      <div id="detalle-rostro" class="resultado"></div>
+    </section>
+
+    <!-- Builder + Bridge -->
+    <section class="tarjeta">
+      <h2>Emisión de la credencial digital <span class="patron">Builder</span> <span class="patron">Bridge</span></h2>
+      <p class="ayuda">Disponible cuando los tres factores de arriba estén en verde.</p>
       <div class="factor__fila">
         <select id="in-rol">
           <option value="ciudadano">Ciudadano</option>
@@ -79,17 +116,17 @@
       <div id="resultado-credencial" class="resultado"></div>
     </section>
 
-    <!-- Paso 4: Proxy -->
+    <!-- Proxy -->
     <section class="tarjeta">
-      <h2>4. Consulta de identidad protegida <span class="patron">Proxy</span></h2>
+      <h2>Consulta de identidad protegida <span class="patron">Proxy</span></h2>
       <p class="ayuda">Solo responde si la credencial emitida arriba tiene el permiso <code>consultar-identidad</code>.</p>
       <button id="btn-identidad" class="boton">Consultar identidad</button>
       <div id="resultado-identidad" class="resultado"></div>
     </section>
 
-    <!-- Paso 5: Composite -->
+    <!-- Composite -->
     <section class="tarjeta">
-      <h2>5. Catálogo de permisos <span class="patron">Composite</span></h2>
+      <h2>Catálogo de permisos <span class="patron">Composite</span></h2>
       <div class="factor__fila">
         <select id="in-rol-permiso">
           <option value="ciudadano">Ciudadano</option>
@@ -102,9 +139,9 @@
       <div id="resultado-permiso" class="resultado"></div>
     </section>
 
-    <!-- Paso 6: Flyweight -->
+    <!-- Flyweight -->
     <section class="tarjeta">
-      <h2>6. Validar documento <span class="patron">Flyweight</span></h2>
+      <h2>Validar documento <span class="patron">Flyweight</span></h2>
       <div class="factor__fila">
         <input id="in-documento" type="text" placeholder="Número de cédula" />
         <button id="btn-documento" class="boton">Validar</button>
@@ -117,6 +154,7 @@
     Proyecto académico SGID · patrones: Singleton · Factory Method · Builder · Adapter · Bridge · Composite · Decorator · Flyweight · Proxy
   </footer>
 
-  <script src="app.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+  <script defer src="app.js"></script>
 </body>
 </html>

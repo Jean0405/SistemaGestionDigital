@@ -106,21 +106,49 @@ a las mismas clases de cada patrón:
 npm run web
 ```
 
-Abre **http://localhost:3000** en el navegador. La página tiene un paso por
-cada patrón: enviar el código de seguridad (Adapter), autenticar con los tres
-factores (Factory Method + Decorator, con bitácora y límite de intentos
-visibles), emitir la credencial elegida por rol (Builder + Bridge), consultar
-la identidad protegida (Proxy), revisar el catálogo de permisos (Composite) y
-validar un número de documento (Flyweight). Un botón "Reiniciar demo" permite
-repetir todo sin apagar el servidor.
+Abre **http://localhost:3000** en el navegador. Nada viene precargado: cada
+factor se prueba primero **registrándolo** y luego **autenticándote** con él,
+con datos reales en vez de valores ya conocidos de antemano:
 
-La contraseña registrada es `clave-del-ciudadano` y el código ya enviado es
-`482913` (se muestran en la propia página), para poder probar tanto el caso
-que funciona como el que falla.
+- **Contraseña** (Factory Method + Decorator): tú eliges la contraseña,
+  no la sabe nadie de antemano. Se ve la bitácora y el bloqueo a los 3 fallos.
+- **Código al teléfono** (Adapter): el código se genera al azar en el
+  servidor; hay que abrir la "bandeja del teléfono" para leerlo y escribirlo,
+  en vez de que la página te lo muestre ya puesto en el campo.
+- **Rostro** (cámara real): usa tu cámara de verdad. El navegador calcula un
+  "descriptor" matemático de tu cara con [face-api.js](https://github.com/justadudewhohacks/face-api.js)
+  y el servidor compara la distancia entre el registro y el intento; ese
+  número (0 a 1) es lo que recibe `FlujoRostro`, exactamente igual que en la
+  ETAPA 3, sin tocarle una línea. Pruébalo contigo mismo y luego con otra
+  persona para ver que sí distingue. **Requiere permiso de cámara e internet**
+  (face-api.js se carga desde un CDN la primera vez).
 
-El servidor (`src/web/server.ts`, con Express) no agrega lógica nueva: solo
-expone por HTTP las mismas clases que usan `index.ts` y `demo-interactivo.ts`.
-Este último sigue disponible como alternativa por consola:
+Después de pasar los tres factores: emitir la credencial elegida por rol
+(Builder + Bridge), consultar la identidad protegida (Proxy), revisar el
+catálogo de permisos (Composite) y validar un número de documento
+(Flyweight). Un botón "Reiniciar demo" permite repetir todo sin apagar el
+servidor.
+
+**Sobre el umbral facial:** una distancia real entre dos fotos de la misma
+persona casi nunca es 0; el umbral por defecto (`BIOMETRIA_UMBRAL=0.85`,
+pensado para el valor "a mano" de las otras demos) suele ser demasiado
+estricto para una cámara real. La página muestra el umbral configurado junto
+al puntaje obtenido, así que si ves que no pasa, baja el umbral antes de
+arrancar el servidor (esto es la ETAPA 2, Singleton, funcionando en vivo):
+
+```bash
+# PowerShell
+$env:BIOMETRIA_UMBRAL = "0.5"; npm run web
+
+# bash / Git Bash
+BIOMETRIA_UMBRAL=0.5 npm run web
+```
+
+El servidor (`src/web/server.ts`, con Express) casi no agrega lógica nueva:
+solo conecta botones con las mismas clases que usan `index.ts` y
+`demo-interactivo.ts`; lo único "nuevo" es la distancia entre dos rostros
+(una resta y una raíz, nada del otro mundo). `demo-interactivo.ts` sigue
+disponible como alternativa por consola, sin cámara ni navegador:
 
 ```bash
 npm run demo

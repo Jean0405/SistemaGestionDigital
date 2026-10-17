@@ -163,6 +163,38 @@ select {
   background: rgba(255, 255, 255, 0.1);
 }
 
+.boton--secundario {
+  background: white;
+  color: var(--azul);
+  border: 1px solid var(--azul);
+}
+
+.boton--secundario:hover {
+  background: var(--azul-claro);
+}
+
+.tarjeta--intro {
+  border-left-color: var(--dorado);
+  background: #fffaf0;
+  font-size: 13px;
+}
+
+.tarjeta--intro p {
+  margin: 0;
+}
+
+video {
+  display: block;
+  background: #0b2e59;
+  border-radius: 8px;
+  margin-bottom: 10px;
+  transform: scaleX(-1); /* efecto espejo, más natural para mirarse */
+}
+
+.factor__fila--camara {
+  flex-wrap: wrap;
+}
+
 .estado {
   margin-top: 8px;
   font-size: 13px;
