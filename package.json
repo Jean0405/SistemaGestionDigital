@@ -1,10 +1,11 @@
 {
   "name": "sistema-gestion-digital",
-  "version": "0.8.0",
-  "description": "Sistema de Gestión de Identidad Digital (SGID) - ETAPA 8: patrones Composite y Decorator para permisos y autenticación",
+  "version": "0.9.0",
+  "description": "Sistema de Gestión de Identidad Digital (SGID) - ETAPA 9: patrón Flyweight para los tipos de documento",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "start": "npm run build && node dist/index.js",
     "test": "jest --config jest.config.js",
     "test:watch": "jest --watch"
   },
@@ -16,6 +17,7 @@
     "bridge",
     "composite",
     "decorator",
+    "flyweight",
     "hexagonal",
     "identidad-digital",
     "typescript"

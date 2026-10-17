@@ -65,6 +65,33 @@ src/
 
 Más allá de las funcionalidades propias del sistema, se tuvieron en cuenta ciertos aspectos que resultan igual de relevantes dado el contexto gubernamental del proyecto: la seguridad de la información (cifrado y auditoría), la disponibilidad del servicio, la capacidad de escalar conforme aumente el número de ciudadanos e integraciones, y la trazabilidad de cada operación realizada sobre la identidad de un usuario.
 
+## Patrones de diseño implementados
+
+| Etapa | Patrón | Para qué se usó | Carpeta principal |
+|---|---|---|---|
+| 2 | Singleton | Una sola fuente de configuración para todo el sistema | `infrastructure/config` |
+| 3 | Factory Method | Autenticación multifactor (contraseña, token, rostro) | `application/auth` |
+| 4 | Builder | Armar paso a paso la credencial digital emitida | `application/credencial` |
+| 5 | Adapter | Enviar SMS a través de SDKs de proveedores incompatibles | `infrastructure/notificaciones` |
+| 6 | Bridge | Separar el tipo de notificación del canal de envío | `application/notificaciones` |
+| 7 | Composite | Catálogo de permisos agrupados en árbol | `domain/permisos` |
+| 8 | Decorator | Bitácora y límite de intentos sobre la autenticación | `application/auth` |
+| 9 | Flyweight | Compartir los tipos de documento entre muchos ciudadanos | `domain/documentos` |
+
+## Cómo ejecutar la demo completa
+
+```bash
+npm install   # instalar dependencias
+npm test      # correr las 39 pruebas
+npm start     # compilar y ejecutar la demostración de las 9 etapas, de punta a punta
+```
+
+`npm start` recorre, en orden, las nueve etapas: arranca la configuración,
+envía el código de seguridad, autentica con los tres factores, emite la
+credencial, avisa que está lista, revisa los permisos del administrador,
+prueba la autenticación protegida y comparte los tipos de documento. El
+detalle de cada patrón está en las secciones de abajo.
+
 ---
 
 # ETAPA 2 — Patrón Singleton (primera funcionalidad)
@@ -1138,6 +1165,149 @@ src/application/auth/autenticador-decorador.ts             # Decorador base
 src/application/auth/autenticador-con-bitacora.ts          # Decorador concreto
 src/application/auth/autenticador-con-limite-intentos.ts   # Decorador concreto
 tests/autenticador-decoradores.test.ts                    # Pruebas del Decorator
+```
+
+---
+
+# ETAPA 9 — Patrón Flyweight (tipos de documento compartidos)
+
+En esta etapa se sumaron los **tipos de documento de identidad** (cédula,
+pasaporte, tarjeta de identidad) y se le aplicó el patrón **Flyweight**.
+
+## En una frase
+
+Miles de ciudadanos pueden tener cédula de ciudadanía, pero el dato de "qué
+es una cédula y cómo se valida" es el mismo para todos. En vez de crear ese
+dato una vez por cada ciudadano, el Flyweight lo crea **una sola vez por
+tipo** y lo comparte entre todos los que lo necesiten.
+
+## ¿Qué es el patrón Flyweight? (contado fácil)
+
+Piensa en las fichas de un juego de mesa: todas las fichas rojas son
+idénticas entre sí. No tiene sentido fabricar una ficha roja nueva cada vez
+que un jugador la necesita; se fabrica un molde una vez y de ahí se reparten
+fichas iguales a quien las pida.
+
+En código:
+
+1. El dato que **se repite igual para muchos objetos** (el molde) se separa
+   del dato que **es propio de cada uno**.
+2. Una fábrica guarda el molde ya hecho y, si alguien lo vuelve a pedir, le
+   entrega el mismo objeto en vez de fabricar uno nuevo.
+
+## Los papeles del patrón en el proyecto
+
+| Papel en el patrón | En el código |
+|---|---|
+| Flyweight (dato compartido) | `TipoDocumento` |
+| Fábrica de flyweights | `FabricaTiposDocumento` |
+| Contexto (dato propio de cada uno) | `DocumentoIdentidad` (número, titular) |
+
+`TipoDocumento` guarda el código, el nombre y el formato de validación de un
+tipo de documento (eso es lo que se comparte). `DocumentoIdentidad` junta ese
+tipo compartido con el número y el titular, que sí son distintos para cada
+persona.
+
+## ¿Cómo incide (afecta) este patrón en el código?
+
+### Sin Flyweight
+
+Cada `DocumentoIdentidad` tendría que crear o copiar su propia información de
+"cómo valida una cédula", repitiendo el mismo dato miles de veces y gastando
+memoria sin necesidad.
+
+### Con Flyweight
+
+- **Un tipo de documento se crea una sola vez**, sin importar cuántos
+  ciudadanos lo tengan.
+- **`FabricaTiposDocumento.obtener('CC')` siempre devuelve la misma
+  instancia**: se puede comparar con `===` para confirmarlo.
+- **Agregar un tipo de documento nuevo no toca el código que ya usa los
+  existentes**, solo se agrega su definición en la fábrica.
+
+### Conexión con las etapas anteriores
+
+Nada impide usar el mismo `usuarioId` de una `CredencialDigital` (ETAPA 4)
+junto con su `DocumentoIdentidad`; son datos distintos del mismo ciudadano,
+cada uno resuelto por su propio patrón.
+
+## Dónde encaja en la arquitectura hexagonal
+
+`TipoDocumento` y `DocumentoIdentidad` viven en el **dominio**: son reglas de
+negocio puras (qué es un tipo de documento válido). `FabricaTiposDocumento`
+vive en la **aplicación**, porque controla *cómo* se crean y reutilizan esos
+objetos.
+
+## Cosas a tener en cuenta del Flyweight
+
+| Punto flojo | Qué se hizo aquí |
+|---|---|
+| Solo vale la pena si hay muchos objetos repitiendo el mismo dato | Aquí hay potencialmente miles de ciudadanos por cada tipo de documento |
+| La caché de la fábrica vive para siempre en memoria | Son solo 4 tipos fijos, no crece con la cantidad de ciudadanos |
+
+## Pruebas / Testing
+
+**`tests/tipos-documento-flyweight.test.ts`**:
+
+| Prueba | Qué revisa |
+|---|---|
+| Misma instancia | `FabricaTiposDocumento.obtener('CC')` devuelve siempre el mismo objeto |
+| Validación propia | Cada tipo valida su propio formato |
+| Beneficio real | 50 documentos del mismo tipo no crean 50 instancias, sino 1 |
+
+Estado actual: **39 pruebas, todas en verde** (36 de las etapas anteriores + 3 nuevas).
+
+## UML del flujo (Flyweight)
+
+```mermaid
+classDiagram
+    class TipoDocumento {
+        +codigo: string
+        +nombre: string
+        +validar(numero) boolean
+    }
+    class FabricaTiposDocumento {
+        -instancias: Map~string, TipoDocumento~
+        +obtener(codigo) TipoDocumento
+        +cantidadCreados() number
+    }
+    class DocumentoIdentidad {
+        +tipo: TipoDocumento
+        +numero: string
+        +titular: string
+        +esValido() boolean
+    }
+
+    FabricaTiposDocumento ..> TipoDocumento : crea y reutiliza
+    DocumentoIdentidad --> TipoDocumento : comparte
+```
+
+```mermaid
+sequenceDiagram
+    participant C as Cliente
+    participant F as FabricaTiposDocumento
+    participant T as TipoDocumento("CC")
+
+    C->>F: obtener("CC")
+    F->>F: ¿ya existe "CC" en la caché?
+    F->>T: new TipoDocumento(...)
+    F-->>C: instancia de "CC"
+
+    C->>F: obtener("CC") (para otro ciudadano)
+    F->>F: ¿ya existe "CC" en la caché?
+    F-->>C: la misma instancia de antes
+```
+
+La segunda llamada no crea nada nuevo: la fábrica ya tenía el molde de "CC"
+guardado y lo entrega tal cual.
+
+## Archivos añadidos en esta etapa
+
+```
+src/domain/documentos/tipo-documento.ts               # Flyweight
+src/domain/documentos/documento-identidad.ts            # Contexto
+src/application/documentos/fabrica-tipos-documento.ts   # Fábrica de flyweights
+tests/tipos-documento-flyweight.test.ts                # Pruebas del Flyweight
 ```
 
 ---

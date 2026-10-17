@@ -7,6 +7,7 @@
  * ETAPA 6: Bridge (tipo de notificación + canal, por separado).
  * ETAPA 7: Composite (catálogo de permisos en árbol).
  * ETAPA 8: Decorator (bitácora y límite de intentos en la autenticación).
+ * ETAPA 9: Flyweight (tipos de documento compartidos).
  */
 import { ConfigManager } from './infrastructure/config/config-manager';
 import { FlujoAutenticacion } from './application/auth/flujo-autenticacion';
@@ -22,6 +23,8 @@ import { NotificacionUrgente } from './application/notificaciones/notificacion-u
 import { catalogoPermisos } from './application/permisos/catalogo-permisos';
 import { AutenticadorConBitacora } from './application/auth/autenticador-con-bitacora';
 import { AutenticadorConLimiteIntentos } from './application/auth/autenticador-con-limite-intentos';
+import { FabricaTiposDocumento } from './application/documentos/fabrica-tipos-documento';
+import { DocumentoIdentidad } from './domain/documentos/documento-identidad';
 
 const config = ConfigManager.getInstance();
 console.log(`SGID iniciando en entorno "${config.obtener('entorno')}"`);
@@ -84,3 +87,12 @@ const contrasenaProtegida = new AutenticadorConBitacora(
   console.log(`  intento "${intento}" -> autenticado=${r.autenticado} · ${r.motivo}`);
 });
 console.log('  bitácora:', contrasenaProtegida.bitacora);
+
+// Muchos ciudadanos con cédula comparten el mismo TipoDocumento; no se crea uno por persona (Flyweight, ETAPA 9).
+const documentos = ['1005184201', '43218765', '98765432'].map(
+  (numero) => new DocumentoIdentidad(FabricaTiposDocumento.obtener('CC'), numero, numero),
+);
+console.log('\nDocumentos de tipo CC:');
+console.log('  válidos:', documentos.map((d) => d.esValido()));
+console.log('  ¿comparten la misma instancia de TipoDocumento?', documentos[0].tipo === documentos[1].tipo);
+console.log('  tipos de documento creados en total:', FabricaTiposDocumento.cantidadCreados());
