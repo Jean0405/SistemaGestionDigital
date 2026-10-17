@@ -17,6 +17,31 @@ function pintarJson(elemento, datos) {
   elemento.innerHTML = `<pre>${JSON.stringify(datos, null, 2)}</pre>`;
 }
 
+// --- Selector: elegir qué factor probar (una fábrica del Factory Method a la vez) ---
+
+const factoresListos = new Set();
+
+function mostrarFactor(nombre) {
+  document.querySelectorAll('[data-factor]').forEach((seccion) => {
+    seccion.hidden = seccion.dataset.factor !== nombre;
+  });
+}
+
+function actualizarProgreso() {
+  const progreso = document.getElementById('progreso-factores');
+  progreso.textContent =
+    factoresListos.size === 0
+      ? 'Factores superados: ninguno todavía.'
+      : `Factores superados: ${[...factoresListos].join(', ')} (${factoresListos.size}/3).`;
+  progreso.className = 'estado' + (factoresListos.size === 3 ? ' estado--ok' : '');
+}
+
+document.getElementById('selector-factor').addEventListener('change', (evento) => {
+  mostrarFactor(evento.target.value);
+});
+
+mostrarFactor('contrasena');
+
 // --- Contraseña: registrar y luego iniciar sesión ---
 
 document.getElementById('btn-contrasena-registrar').addEventListener('click', async () => {
@@ -40,6 +65,10 @@ document.getElementById('btn-contrasena').addEventListener('click', async () => 
   });
   pintarEstado(document.getElementById('estado-contrasena'), resultado);
   document.getElementById('bitacora').innerHTML = (resultado.bitacora || []).map((linea) => `<li>${linea}</li>`).join('');
+  if (resultado.autenticado) {
+    factoresListos.add('contraseña');
+    actualizarProgreso();
+  }
 });
 
 // --- Token por teléfono ---
@@ -65,6 +94,10 @@ document.getElementById('btn-token').addEventListener('click', async () => {
     body: JSON.stringify({ valor }),
   });
   pintarEstado(document.getElementById('estado-token'), resultado);
+  if (resultado.autenticado) {
+    factoresListos.add('token-teléfono');
+    actualizarProgreso();
+  }
 });
 
 // Muestra el umbral real configurado, para que el número de abajo tenga contra qué compararse.
@@ -153,6 +186,10 @@ document.getElementById('btn-rostro').addEventListener('click', async () => {
 puntaje enviado al FlujoRostro: ${resultado.puntaje.toFixed(3)}
 umbral mínimo configurado: ${umbralFacial}</pre>`;
     }
+    if (resultado.autenticado) {
+      factoresListos.add('rostro');
+      actualizarProgreso();
+    }
   } catch (error) {
     estado.textContent = error.message;
     estado.className = 'estado estado--error';
@@ -235,4 +272,9 @@ document.getElementById('btn-reset').addEventListener('click', async () => {
   }
   document.getElementById('btn-rostro-registrar').disabled = true;
   document.getElementById('btn-rostro').disabled = true;
+
+  factoresListos.clear();
+  actualizarProgreso();
+  document.getElementById('selector-factor').value = 'contrasena';
+  mostrarFactor('contrasena');
 });

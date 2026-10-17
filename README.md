@@ -106,7 +106,10 @@ a las mismas clases de cada patrón:
 npm run web
 ```
 
-Abre **http://localhost:3000** en el navegador. Nada viene precargado: cada
+Abre **http://localhost:3000** en el navegador. Arriba hay un selector para
+elegir **con qué factor probar** (contraseña, código al teléfono o rostro);
+se ve solo el panel elegido y una línea de progreso con los factores que ya
+superaste, sin importar el orden en que los prueba. Nada viene precargado: cada
 factor se prueba primero **registrándolo** y luego **autenticándote** con él,
 con datos reales en vez de valores ya conocidos de antemano:
 

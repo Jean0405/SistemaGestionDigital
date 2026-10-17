@@ -29,8 +29,18 @@
       </p>
     </section>
 
+    <section class="tarjeta tarjeta--selector">
+      <label for="selector-factor"><strong>¿Con qué factor quieres probar la autenticación?</strong></label>
+      <select id="selector-factor">
+        <option value="contrasena">🔑 Contraseña</option>
+        <option value="token">📱 Código al teléfono</option>
+        <option value="rostro">🙂 Rostro (cámara real)</option>
+      </select>
+      <div id="progreso-factores" class="estado">Factores superados: ninguno todavía.</div>
+    </section>
+
     <!-- Contraseña: Factory Method + Decorator -->
-    <section class="tarjeta">
+    <section class="tarjeta" data-factor="contrasena">
       <h2>🔑 Contraseña <span class="patron">Factory Method</span> <span class="patron">Decorator</span></h2>
       <p class="ayuda">El Decorator agrega una bitácora y bloquea el factor tras 3 fallos seguidos.</p>
 
@@ -55,7 +65,7 @@
     </section>
 
     <!-- Token: Adapter -->
-    <section class="tarjeta">
+    <section class="tarjeta" data-factor="token">
       <h2>📱 Código al teléfono <span class="patron">Adapter</span></h2>
       <p class="ayuda">El código se genera al azar y se "envía" por dos proveedores de SMS con interfaces distintas, adaptados a una sola forma de uso. Para verlo hay que revisar la bandeja, igual que en un teléfono real.</p>
 
@@ -80,7 +90,7 @@
     </section>
 
     <!-- Rostro: cámara real -->
-    <section class="tarjeta">
+    <section class="tarjeta" data-factor="rostro">
       <h2>🙂 Rostro (cámara real) <span class="patron">Factory Method</span></h2>
       <p class="ayuda">
         Usa tu propia cámara. El navegador calcula un "descriptor" de tu rostro
