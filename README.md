@@ -77,20 +77,22 @@ Más allá de las funcionalidades propias del sistema, se tuvieron en cuenta cie
 | 7 | Composite | Catálogo de permisos agrupados en árbol | `domain/permisos` |
 | 8 | Decorator | Bitácora y límite de intentos sobre la autenticación | `application/auth` |
 | 9 | Flyweight | Compartir los tipos de documento entre muchos ciudadanos | `domain/documentos` |
+| 10 | Proxy | Acceso protegido a los datos de identidad | `application/identidad` |
 
 ## Cómo ejecutar la demo completa
 
 ```bash
 npm install   # instalar dependencias
-npm test      # correr las 39 pruebas
+npm test      # correr las 42 pruebas
 npm start     # compilar y ejecutar la demostración de las 9 etapas, de punta a punta
 ```
 
-`npm start` recorre, en orden, las nueve etapas: arranca la configuración,
+`npm start` recorre, en orden, las diez etapas: arranca la configuración,
 envía el código de seguridad, autentica con los tres factores, emite la
-credencial, avisa que está lista, revisa los permisos del administrador,
-prueba la autenticación protegida y comparte los tipos de documento. El
-detalle de cada patrón está en las secciones de abajo.
+credencial, avisa que está lista, consulta la identidad a través del proxy,
+revisa los permisos del administrador, prueba la autenticación protegida y
+comparte los tipos de documento. El detalle de cada patrón está en las
+secciones de abajo.
 
 ---
 
@@ -1308,6 +1310,163 @@ src/domain/documentos/tipo-documento.ts               # Flyweight
 src/domain/documentos/documento-identidad.ts            # Contexto
 src/application/documentos/fabrica-tipos-documento.ts   # Fábrica de flyweights
 tests/tipos-documento-flyweight.test.ts                # Pruebas del Flyweight
+```
+
+---
+
+# ETAPA 10 — Patrón Proxy (acceso protegido a la identidad)
+
+En esta etapa se sumó la **consulta de identidad de un ciudadano** y se le
+aplicó el patrón **Proxy**, reutilizando la `CredencialDigital` de la
+ETAPA 4 y los permisos de la ETAPA 7.
+
+## En una frase
+
+`RepositorioIdentidadProxy` se hace pasar por el repositorio real de
+identidad, pero antes de dejar pasar la consulta revisa si quien pregunta
+tiene el permiso necesario. Si no lo tiene, nunca llega a tocar el
+repositorio real.
+
+## ¿Qué es el patrón Proxy? (contado fácil)
+
+Piensa en la recepción de un edificio de oficinas: no entras directo a la
+oficina que buscas, primero pasas por recepción, que revisa si tienes cita o
+permiso para subir. La recepción se parece a la oficina de cara a quien
+llega (ambas te "dejan entrar"), pero controla el acceso antes de que
+llegues a la oficina real.
+
+En código:
+
+1. El **sujeto real** (`RepositorioIdentidadMemoria`) es el que de verdad
+   tiene los datos.
+2. El **proxy** (`RepositorioIdentidadProxy`) implementa la misma interfaz
+   que el sujeto real.
+3. Antes de delegarle el trabajo al sujeto real, el proxy decide si lo deja
+   pasar o no.
+
+## Los papeles del patrón en el proyecto
+
+| Papel en el patrón | En el código |
+|---|---|
+| Sujeto (interfaz común) | `RepositorioIdentidad` |
+| Sujeto real | `RepositorioIdentidadMemoria` |
+| Proxy | `RepositorioIdentidadProxy` |
+
+El proxy recibe el repositorio real y una `CredencialDigital`; antes de
+llamar a `real.obtener()`, revisa si `credencial.permisos` incluye
+`'consultar-identidad'`. Si no lo incluye, lanza un error sin haber tocado
+el repositorio real.
+
+## ¿Cómo incide (afecta) este patrón en el código?
+
+### Sin Proxy
+
+El propio `RepositorioIdentidadMemoria` (o cada módulo que lo llame) tendría
+que revisar los permisos antes de responder, mezclando "dónde viven los
+datos" con "quién puede verlos".
+
+### Con Proxy
+
+- **El repositorio real no sabe nada de permisos**: solo guarda y entrega
+  datos.
+- **El control de acceso vive en un solo lugar**, reutilizable con
+  cualquier otro repositorio que cumpla la misma interfaz.
+- **Quien usa el proxy no nota la diferencia**: lo llama exactamente igual
+  que llamaría al repositorio real.
+
+### Conexión con las etapas anteriores
+
+El proxy se arma con la credencial que ya emitió el Builder (ETAPA 4):
+
+```ts
+const identidades = new RepositorioIdentidadProxy(new RepositorioIdentidadMemoria(), credencial);
+identidades.obtener('ciudadano-001');
+```
+
+Si la credencial no trae el permiso `'consultar-identidad'` (por ejemplo,
+porque el catálogo de la ETAPA 7 nunca se lo dio a ese rol), el proxy corta
+el acceso ahí mismo.
+
+## Dónde encaja en la arquitectura hexagonal
+
+`RepositorioIdentidad` (el puerto) vive en el **dominio**.
+`RepositorioIdentidadMemoria` (el adaptador que de verdad guarda los datos)
+vive en la **infraestructura**. `RepositorioIdentidadProxy` vive en la
+**aplicación**, porque la regla "quién puede consultar" es una decisión de
+negocio, no de almacenamiento.
+
+## Cosas a tener en cuenta del Proxy
+
+| Punto flojo | Qué se hizo aquí |
+|---|---|
+| Se puede confundir con Decorator porque ambos envuelven un objeto | El Decorator siempre delega y agrega comportamiento; este Proxy puede **no delegar nunca** si no hay permiso |
+| Un solo permiso fijo puede ser poco flexible | Se dejó configurable por constructor (`permisoRequerido`) para no atarlo a un solo caso |
+
+## Pruebas / Testing
+
+**`tests/repositorio-identidad-proxy.test.ts`**:
+
+| Prueba | Qué revisa |
+|---|---|
+| Acceso permitido | El proxy deja pasar la consulta cuando la credencial tiene el permiso |
+| Acceso bloqueado | El proxy no llega a llamar al repositorio real si falta el permiso |
+| Misma interfaz | El proxy se puede usar en cualquier lugar que espere un `RepositorioIdentidad` |
+
+Estado actual: **42 pruebas, todas en verde** (39 de las etapas anteriores + 3 nuevas).
+
+## UML del flujo (Proxy)
+
+```mermaid
+classDiagram
+    class RepositorioIdentidad {
+        <<interface>>
+        +obtener(usuarioId) DatosIdentidad
+    }
+    class RepositorioIdentidadMemoria {
+        +obtener(usuarioId) DatosIdentidad
+    }
+    class RepositorioIdentidadProxy {
+        -real: RepositorioIdentidad
+        -credencial: CredencialDigital
+        +obtener(usuarioId) DatosIdentidad
+    }
+    class CredencialDigital {
+        +permisos: string[]
+    }
+
+    RepositorioIdentidad <|.. RepositorioIdentidadMemoria
+    RepositorioIdentidad <|.. RepositorioIdentidadProxy
+    RepositorioIdentidadProxy --> RepositorioIdentidad : real
+    RepositorioIdentidadProxy ..> CredencialDigital : consulta permisos
+```
+
+```mermaid
+sequenceDiagram
+    participant C as Cliente
+    participant P as RepositorioIdentidadProxy
+    participant R as RepositorioIdentidadMemoria
+
+    C->>P: obtener("ciudadano-001")
+    P->>P: ¿la credencial tiene "consultar-identidad"?
+    alt tiene el permiso
+        P->>R: obtener("ciudadano-001")
+        R-->>P: DatosIdentidad
+        P-->>C: DatosIdentidad
+    else no lo tiene
+        P-->>C: error "Acceso denegado"
+    end
+```
+
+El repositorio real (`R`) ni se entera cuando el acceso se bloquea: el proxy
+corta el camino antes de llegar a él.
+
+## Archivos añadidos en esta etapa
+
+```
+src/domain/identidad/repositorio-identidad.ts                    # Sujeto (interfaz)
+src/infrastructure/identidad/repositorio-identidad-memoria.ts      # Sujeto real
+src/application/identidad/repositorio-identidad-proxy.ts           # Proxy
+tests/repositorio-identidad-proxy.test.ts                         # Pruebas del Proxy
 ```
 
 ---

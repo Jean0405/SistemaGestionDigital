@@ -8,6 +8,7 @@
  * ETAPA 7: Composite (catálogo de permisos en árbol).
  * ETAPA 8: Decorator (bitácora y límite de intentos en la autenticación).
  * ETAPA 9: Flyweight (tipos de documento compartidos).
+ * ETAPA 10: Proxy (acceso protegido a la identidad).
  */
 import { ConfigManager } from './infrastructure/config/config-manager';
 import { FlujoAutenticacion } from './application/auth/flujo-autenticacion';
@@ -25,6 +26,8 @@ import { AutenticadorConBitacora } from './application/auth/autenticador-con-bit
 import { AutenticadorConLimiteIntentos } from './application/auth/autenticador-con-limite-intentos';
 import { FabricaTiposDocumento } from './application/documentos/fabrica-tipos-documento';
 import { DocumentoIdentidad } from './domain/documentos/documento-identidad';
+import { RepositorioIdentidadMemoria } from './infrastructure/identidad/repositorio-identidad-memoria';
+import { RepositorioIdentidadProxy } from './application/identidad/repositorio-identidad-proxy';
 
 const config = ConfigManager.getInstance();
 console.log(`SGID iniciando en entorno "${config.obtener('entorno')}"`);
@@ -69,6 +72,11 @@ if (todoOk) {
   console.log('\nAviso de credencial lista:');
   console.log('  ', avisoUrgentePorSms.enviar('3001234567', 'tu credencial ya está lista'));
   console.log('  ', avisoSimplePorCorreo.enviar('ana@sgid.gov', 'tu credencial ya está lista'));
+
+  // El proxy solo deja pasar si la credencial tiene el permiso, sin cambiar el repositorio real (Proxy, ETAPA 10).
+  const identidades = new RepositorioIdentidadProxy(new RepositorioIdentidadMemoria(), credencial);
+  console.log('\nConsulta de identidad protegida por proxy:');
+  console.log('  ', identidades.obtener('ciudadano-001'));
 }
 
 // Un permiso suelto o un grupo entero se consultan igual (Composite, ETAPA 7).
