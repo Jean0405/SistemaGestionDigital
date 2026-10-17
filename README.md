@@ -1251,6 +1251,12 @@ objetos.
 
 **`tests/tipos-documento-flyweight.test.ts`**:
 
+```bash
+npx jest tipos-documento-flyweight
+```
+
+![alt text](/docs/img/image-6.png)
+
 | Prueba | Qué revisa |
 |---|---|
 | Misma instancia | `FabricaTiposDocumento.obtener('CC')` devuelve siempre el mismo objeto |
@@ -1405,6 +1411,12 @@ negocio, no de almacenamiento.
 ## Pruebas / Testing
 
 **`tests/repositorio-identidad-proxy.test.ts`**:
+
+```bash
+npx jest repositorio-identidad-proxy
+```
+
+![alt text](/docs/img/image-7.png)
 
 | Prueba | Qué revisa |
 |---|---|
