@@ -1,5 +1,13 @@
 # Sistema de Gestión de Identidad Digital (SGID)
 
+## Ejecutar rápido
+
+```bash
+npm install
+copy .env.example .env   # en bash: cp .env.example .env
+npm run web              # abre http://localhost:3000
+```
+
 ## Descripción general
 
 Este proyecto corresponde al desarrollo de un sistema backend enfocado en el sector gobierno, cuyo propósito central es unificar la manera en que los ciudadanos acreditan su identidad frente a distintas entidades del Estado. En lugar de que cada dependencia gubernamental maneje su propio esquema de autenticación, el sistema plantea un componente único capaz de validar identidad mediante biometría multifactor, administrar roles y permisos, y exponer esa información de forma controlada a otros servicios públicos que la requieran.
