@@ -1,4 +1,4 @@
-# Sistema de Gestión de Identidad Digital (SGID) - *ETAPA #0*
+# Sistema de Gestión de Identidad Digital (SGID)
 
 ## Descripción general
 
@@ -46,19 +46,22 @@ Para este proyecto se optó por el patrón **Hexagonal (Ports & Adapters)**. La 
 
 ```
 src/
-├── domain/          # Entidades y reglas de negocio del sistema
-├── application/     # Casos de uso y definición de puertos (interfaces)
-├── infrastructure/  # Adaptadores concretos: base de datos, APIs externas, biometría
-└── interfaces/      # Capa de entrada, controladores REST
+├── domain/          # Entidades y reglas de negocio, y los puertos que necesitan (repositorios, auditoría)
+├── application/     # Casos de uso y puertos de seguridad (hash, cifrado, tokens)
+├── infrastructure/  # Adaptadores concretos: archivos JSON, criptografía, SMS, auditoría
+└── web/             # Capa de entrada: API REST (Express) y el contenedor que conecta todo
 ```
 
 ## Tecnologías utilizadas
 
 - Lenguaje: TypeScript
-- Entorno de ejecución: Node.js
-- Base de datos: PostgreSQL
-- ORM: TypeORM
-- Autenticación: JWT combinado con OAuth2 y un adaptador biométrico
+- Entorno de ejecución: Node.js (20.12 o superior)
+- Servidor web: Express
+- Persistencia: archivos JSON en `data/`, con los datos sensibles cifrados (la arquitectura hexagonal
+  permite cambiarlo por PostgreSQL escribiendo otro adaptador de los mismos puertos)
+- Autenticación: tres factores (contraseña, código SMS, rostro con [face-api.js](https://github.com/justadudewhohacks/face-api.js)),
+  credencial como JWT firmado (HS256) y OAuth2 *client credentials* para las entidades externas
+- Criptografía: módulo `crypto` nativo de Node (scrypt, AES-256-GCM, HMAC-SHA256, SHA-256), sin dependencias extra
 - Pruebas: Jest
 
 ## Consideraciones no funcionales
@@ -78,14 +81,16 @@ Más allá de las funcionalidades propias del sistema, se tuvieron en cuenta cie
 | 8 | Decorator | Bitácora y límite de intentos sobre la autenticación | `application/auth` |
 | 9 | Flyweight | Compartir los tipos de documento entre muchos ciudadanos | `domain/documentos` |
 | 10 | Proxy | Acceso protegido a los datos de identidad | `application/identidad` |
+| 11 | *(los mismos, extendidos)* | Integración gubernamental, seguridad y panel de administración | `application/integracion`, `web/` |
 
 ## Cómo ejecutar la demo completa
 
 ```bash
-npm install   # instalar dependencias
-npm test      # correr las 42 pruebas
-npm start     # compilar y ejecutar la demostración de las 10 etapas, de punta a punta
-npm run web   # levantar la interfaz web en http://localhost:3000, para probar en vivo
+npm install          # instalar dependencias
+npm test             # correr las 42 pruebas
+npm start            # compilar y ejecutar la demostración de las 10 etapas, de punta a punta
+npm run web          # levantar la interfaz web en http://localhost:3000, para probar en vivo
+npm run datos:borrar # borrar usuarios, roles, entidades y auditoría (volver al primer arranque)
 ```
 
 `npm start` recorre, en orden, las diez etapas con datos fijos: arranca la
@@ -98,62 +103,49 @@ en las secciones de abajo.
 ## Demo en vivo (interfaz web)
 
 `npm start` siempre usa los mismos valores, útil para ver rápido que todo
-funciona pero no para mostrarlo en vivo. Para eso hay una página web local
-que pide los datos reales (tú o el docente los escriben) y por debajo llama
-a las mismas clases de cada patrón:
+funciona pero no para mostrarlo en vivo. Para eso está la interfaz web, que
+pide datos reales y por debajo usa las mismas clases de cada patrón.
+
+### Antes de presentar
 
 ```bash
+# 1. Configuración: copia el ejemplo y cambia los secretos
+copy .env.example .env      # PowerShell / cmd   (en bash: cp .env.example .env)
+
+# 2. Arranca el servidor
 npm run web
 ```
 
-Abre **http://localhost:3000** en el navegador. Arriba hay un selector para
-elegir **con qué factor probar** (contraseña, código al teléfono o rostro);
-se ve solo el panel elegido y una línea de progreso con los factores que ya
-superaste, sin importar el orden en que los prueba. Nada viene precargado: cada
-factor se prueba primero **registrándolo** y luego **autenticándote** con él,
-con datos reales en vez de valores ya conocidos de antemano:
+Abre **http://localhost:3000**. El archivo `.env` trae `BIOMETRIA_UMBRAL=0.5`,
+que es lo que suele funcionar con una cámara real (el valor por defecto, 0.85,
+está pensado para las demos con puntajes escritos a mano). El reconocimiento
+facial **necesita permiso de cámara e internet** (face-api.js se descarga de
+un CDN la primera vez).
 
-- **Contraseña** (Factory Method + Decorator): tú eliges la contraseña,
-  no la sabe nadie de antemano. Se ve la bitácora y el bloqueo a los 3 fallos.
-- **Código al teléfono** (Adapter): el código se genera al azar en el
-  servidor; hay que abrir la "bandeja del teléfono" para leerlo y escribirlo,
-  en vez de que la página te lo muestre ya puesto en el campo.
-- **Rostro** (cámara real): usa tu cámara de verdad. El navegador calcula un
-  "descriptor" matemático de tu cara con [face-api.js](https://github.com/justadudewhohacks/face-api.js)
-  y el servidor compara la distancia entre el registro y el intento; ese
-  número (0 a 1) es lo que recibe `FlujoRostro`, exactamente igual que en la
-  ETAPA 3, sin tocarle una línea. Pruébalo contigo mismo y luego con otra
-  persona para ver que sí distingue. **Requiere permiso de cámara e internet**
-  (face-api.js se carga desde un CDN la primera vez).
+Todo lo que se registra queda en la carpeta `data/` (ignorada por git), así
+que el administrador y sus roles siguen ahí después de reiniciar el servidor.
+`npm run datos:borrar` vuelve al primer arranque.
 
-Después de pasar los tres factores, el botón **"Iniciar sesión"** arma tu
-perfil completo de una sola vez: emite la credencial por tu rol (Builder),
-avisa que está lista (Bridge), consulta tu identidad solo si tienes permiso
-(Proxy), revisa los accesos agrupados de tu rol (Composite) y valida tu
-documento (Flyweight). No son botones sueltos por patrón: es un único caso
-de uso ("entrar al sistema") que por debajo combina los cinco. Un botón
-"Reiniciar demo" permite repetir todo sin apagar el servidor.
+### Guion sugerido
 
-**Sobre el umbral facial:** una distancia real entre dos fotos de la misma
-persona casi nunca es 0; el umbral por defecto (`BIOMETRIA_UMBRAL=0.85`,
-pensado para el valor "a mano" de las otras demos) suele ser demasiado
-estricto para una cámara real. La página muestra el umbral configurado junto
-al puntaje obtenido, así que si ves que no pasa, baja el umbral antes de
-arrancar el servidor (esto es la ETAPA 2, Singleton, funcionando en vivo):
+| Paso | Pestaña | Qué se muestra | Patrones |
+|---|---|---|---|
+| 1 | Registro | **Primer arranque:** se registra el administrador (nombre, documento, teléfono, contraseña y rostro con la cámara). Queda guardado. | Flyweight valida el documento |
+| 2 | Iniciar sesión | El administrador supera los 3 factores en cualquier orden. El código llega a un **teléfono simulado** en pantalla. 3 fallos bloquean el factor. | Factory Method, Decorator, Adapter, Singleton (umbral) |
+| 3 | Mi perfil | Credencial emitida, token JWT decodificado, identidad descifrada, árbol de permisos del rol y aviso de inicio de sesión por SMS y correo. | Builder, Proxy, Composite, Bridge |
+| 4 | Administración → Roles y permisos | Crear un rol (p. ej. `auditor`) marcando un **grupo completo** y un permiso suelto; se ven los permisos efectivos. | Composite |
+| 5 | Administración → Entidades externas | Registrar "Hospital X": aparece su `client_id` y `client_secret` (una sola vez) y el botón "Probar en API gubernamental". | Factory Method (secreto con hash) |
+| 6 | API gubernamental | La entidad pide su token (OAuth2) y valida un documento: responde solo **sí/no**, sin datos personales. Se ve la petición y la respuesta HTTP. | Proxy, Flyweight, Builder |
+| 7 | Roles y permisos | Quitarle `integracion` al rol `entidad-externa` y repetir el paso 6 con **el mismo token**: ahora es `403`. | Composite + Proxy |
+| 8 | Registro / Usuarios | Registrar a otra persona (entra como ciudadano) y cambiarle el rol desde el panel. "Desbloquear" reinicia el límite de intentos. | Decorator |
+| 9 | Auditoría | Todo quedó registrado y la cadena de hashes está íntegra. Si se edita a mano `data/auditoria.jsonl`, la pantalla muestra en qué registro se rompió. | — |
 
-```bash
-# PowerShell
-$env:BIOMETRIA_UMBRAL = "0.5"; npm run web
+Para mostrar el cifrado, abre `data/usuarios.json`: el documento, el
+teléfono, el correo y el rostro se ven como texto cifrado y la
+contraseña solo como su hash (`sal:hash`).
 
-# bash / Git Bash
-BIOMETRIA_UMBRAL=0.5 npm run web
-```
-
-El servidor (`src/web/server.ts`, con Express) casi no agrega lógica nueva:
-solo conecta botones con las mismas clases que usan `index.ts` y
-`demo-interactivo.ts`; lo único "nuevo" es la distancia entre dos rostros
-(una resta y una raíz, nada del otro mundo). `demo-interactivo.ts` sigue
-disponible como alternativa por consola, sin cámara ni navegador:
+`demo-interactivo.ts` sigue disponible como alternativa por consola, sin
+cámara ni navegador:
 
 ```bash
 npm run demo
@@ -192,11 +184,6 @@ y a la que siempre se llega por el mismo lado (`ConfigManager.getInstance()`).
 
 Ejemplo dentro del proyecto: el `VerificadorBiometrico` no tiene el umbral
 escrito a mano en el código, se lo pide al gestor.
-
-## Documentación detallada
-
-Explicación completa y con calma (qué es el patrón, cómo afecta al código,
-ventajas y cosas a tener en cuenta): [`docs/ETAPA-2-Singleton.md`](docs/ETAPA-2-Singleton.md)
 
 ## Cómo ejecutar
 
@@ -1544,6 +1531,168 @@ src/domain/identidad/repositorio-identidad.ts                    # Sujeto (inter
 src/infrastructure/identidad/repositorio-identidad-memoria.ts      # Sujeto real
 src/application/identidad/repositorio-identidad-proxy.ts           # Proxy
 tests/repositorio-identidad-proxy.test.ts                         # Pruebas del Proxy
+```
+
+---
+
+# ETAPA 11 — Integración gubernamental, seguridad y panel de administración
+
+En esta etapa se completaron los cuatro requisitos del proyecto con una
+aplicación web multiusuario. **No se cambió ninguna clase de los nueve
+patrones:** todo lo nuevo se construyó *usándolos* o *extendiéndolos* de la
+forma que cada patrón permite (un creador más, un decorador más, un director
+más, un sujeto real más).
+
+## En una frase
+
+Las personas se registran y entran con sus tres factores; el administrador
+gestiona roles, permisos, usuarios y entidades desde un panel; otras
+entidades del Estado validan identidades por una API con OAuth2; y todo queda
+cifrado, firmado y auditado.
+
+## Cómo se reutilizan los patrones
+
+| Patrón | Pieza nueva | Cómo se usó, sin tocar la clase original |
+|---|---|---|
+| Singleton | `ConfigManager` | Suma dos valores: `DATOS_CLAVE` (cifrado) y `SGID_DATOS_DIR`. El `JWT_SECRET` que ya tenía ahora firma los tokens. |
+| Factory Method | `FlujoContrasenaSegura` + `FactorContrasenaSegura` | Un **creador nuevo** que compara contra un hash. Sirve para la contraseña de las personas y para el secreto de las entidades. `FlujoAutenticacion` no se tocó (principio abierto/cerrado). |
+| Builder | `DirectorCredencialesPorRol` | Un **director nuevo** cuyas recetas salen del árbol de permisos que edita el administrador. El builder es el mismo. |
+| Adapter | `ServicioInicioSesion` | El código SMS se envía por el primer proveedor que responda (`AdaptadorSmsGlobal`, si falla `AdaptadorSmsLocal`). |
+| Bridge | `ServicioInicioSesion` | Al entrar se avisa con `NotificacionUrgente` por SMS y `NotificacionSimple` por correo. |
+| Composite | `GestorRoles` | Cada rol se arma como un árbol de `GrupoPermisos` y `PermisoSimple`; `contiene()` decide los accesos y `listar()` da los permisos del token. |
+| Decorator | `AutenticadorConAuditoria` | Un **decorador nuevo** que escribe en la bitácora permanente. Se apila con los existentes: `Bitacora(Auditoria(LimiteIntentos(flujo)))`. |
+| Flyweight | `ServicioUsuarios`, `ServicioIntegracion` | `FabricaTiposDocumento` valida el documento al registrarse y en cada consulta de la API. |
+| Proxy | `ServicioIntegracion`, `/api/perfil` | El mismo `RepositorioIdentidadProxy`, con el permiso `validar-identidad-externa` para la API (ya era configurable por constructor). `RepositorioUsuariosArchivo` es un sujeto real nuevo. |
+
+## Requisito 1 — Autenticación biométrica multifactor
+
+- Tres factores obligatorios, en cualquier orden: contraseña (algo que sabes),
+  código SMS (algo que tienes) y rostro (algo que eres).
+- Cada factor tiene **límite de 3 intentos** por persona; el código SMS es
+  aleatorio (`crypto.randomInt`), **de un solo uso** y vence a los 5 minutos.
+- La plantilla del rostro (128 números) se guarda cifrada, nunca una foto.
+
+## Requisito 2 — Gestión de permisos y roles
+
+- **El rol lo asigna el servidor**: el registro público siempre crea
+  ciudadanos; solo el primer registro (sin administrador todavía) crea al
+  administrador.
+- **Panel de administración** con cuatro secciones, cada una protegida por su
+  propio permiso: roles y permisos (`gestionar-roles`), usuarios
+  (`gestionar-usuarios`), entidades (`gestionar-entidades`) y auditoría
+  (`ver-auditoria`, `exportar-auditoria`).
+- Catálogo fijo de permisos en grupos (`identidad`, `auditoria`,
+  `administracion`, `integracion`); el administrador arma roles nuevos con
+  grupos completos o permisos sueltos.
+- **Revocación inmediata:** cada petición revisa el permiso en el token *y*
+  en el rol que la persona tiene en ese momento. Quitar un permiso o bajar
+  un rol corta el acceso aunque el token siga vigente.
+- Para no quedarse sin administrador: nadie cambia su propio rol y el rol
+  `administrador` no puede perder el permiso `gestionar-roles`.
+
+## Requisito 3 — Integración con servicios gubernamentales
+
+API versionada en `/api/gov/v1`, pensada para que otra entidad no tenga que
+implementar su propia autenticación:
+
+| Método | Ruta | Para qué |
+|---|---|---|
+| `POST` | `/api/gov/v1/oauth/token` | OAuth2 *client credentials*: `grant_type`, `client_id` y `client_secret` (JSON o formulario) → token Bearer |
+| `POST` | `/api/gov/v1/identidades/validar` | `{ tipoDocumento, numeroDocumento, nombreCompleto? }` → `{ valida, coincideNombre, registroAuditoria }` |
+
+- **Minimización de datos:** la entidad solo sabe si el documento está
+  registrado y, si lo envió, si el nombre coincide. Nunca recibe los datos.
+- Los errores usan la forma de OAuth2 (`invalid_client`,
+  `insufficient_scope`, `invalid_token`…), que es la que esperan los sistemas
+  que se integran.
+- Revocar la entidad o quitarle el permiso al rol corta el acceso al instante.
+
+```bash
+# Ejemplo con curl (cambia el client_id, el secreto y el token)
+curl -X POST http://localhost:3000/api/gov/v1/oauth/token \
+  -H "Content-Type: application/json" \
+  -d '{"grant_type":"client_credentials","client_id":"gov-…","client_secret":"…"}'
+
+curl -X POST http://localhost:3000/api/gov/v1/identidades/validar \
+  -H "Authorization: Bearer <access_token>" -H "Content-Type: application/json" \
+  -d '{"tipoDocumento":"CC","numeroDocumento":"1005184201","nombreCompleto":"Ana Pérez"}'
+```
+
+```mermaid
+sequenceDiagram
+    participant E as Entidad externa
+    participant API as /api/gov/v1
+    participant S as ServicioIntegracion
+    participant P as RepositorioIdentidadProxy
+    participant R as RepositorioUsuariosArchivo
+
+    E->>API: POST /oauth/token (client_id, client_secret)
+    API->>S: emitirToken()
+    Note over S: FlujoContrasenaSegura + límite de intentos + auditoría
+    S-->>E: access_token (JWT firmado)
+    E->>API: POST /identidades/validar (Bearer)
+    Note over API: firma, vigencia, entidad activa y permiso en el rol actual
+    API->>S: validarIdentidad()
+    Note over S: Flyweight revisa el formato del documento
+    S->>P: obtener(id seudónimo)
+    P->>P: ¿la credencial tiene validar-identidad-externa?
+    P->>R: obtener()
+    R-->>S: identidad (descifrada)
+    S-->>E: { valida: true, coincideNombre: true }
+```
+
+## Requisito 4 — Estándares de seguridad
+
+| Control | Cómo se implementó | Dónde |
+|---|---|---|
+| Contraseñas y secretos de cliente | Hash **scrypt** con sal aleatoria; comparación en tiempo constante | `infrastructure/seguridad/criptografia.ts` |
+| Cifrado de datos sensibles en reposo | **AES-256-GCM** (cifrado autenticado: detecta alteraciones) para documento, teléfono, correo y rostro | `infrastructure/seguridad/criptografia.ts` |
+| Seudonimización | El identificador de cada persona es un HMAC del documento: se puede buscar por documento sin guardarlo en claro | `ServicioUsuarios.idPara()` |
+| Credencial firmada | **JWT HS256** con expiración y `jti`; cualquier cambio rompe la firma; revocación al cerrar sesión | `infrastructure/seguridad/tokens-jwt.ts` |
+| Trazabilidad / auditoría | Bitácora de solo agregar, **encadenada con SHA-256**: editar o borrar una línea rompe la cadena y se detecta | `infrastructure/auditoria/bitacora-auditoria.ts` |
+| Fuerza bruta | Límite de intentos en los tres factores y en el secreto de cliente; código SMS de un solo uso | Decorator `AutenticadorConLimiteIntentos` |
+| Menor privilegio | Rol asignado por el servidor; permisos revisados contra el rol actual en cada petición | `web/seguridad-http.ts` |
+| Minimización y enmascarado | La API responde solo sí/no; el panel muestra `******4201` | `application/comun.ts` |
+| Encabezados HTTP | CSP, `X-Frame-Options`, `nosniff`, `Referrer-Policy`, `Cache-Control: no-store` en la API | `web/seguridad-http.ts` |
+| Secretos fuera del código | `.env` (ignorado por git); en producción el sistema **no arranca** con las claves de desarrollo | `ConfigManager` |
+| XSS en la interfaz | Todo lo que se pinta pasa por un escape de HTML | `public/js/util.js` |
+
+Estos controles siguen las prácticas que piden marcos como **NIST SP 800-63B**
+(identidad digital), **ISO/IEC 27001** y, en Colombia, la **Ley 1581 de 2012**
+de protección de datos y el **MSPI** de MinTIC. El proyecto no está
+certificado frente a ellos; es una implementación académica de sus ideas.
+
+### Qué falta para un despliegue real
+
+- **HTTPS** delante del servidor (un proxy inverso con TLS).
+- Un **SMS real**: el "teléfono simulado" solo existe fuera de producción
+  (`NODE_ENV=production` lo desactiva).
+- **Base de datos** en vez de archivos JSON (otro adaptador de los mismos puertos).
+- **Prueba de vida** en el rostro: hoy una foto frente a la cámara podría pasar.
+- Los bloqueos por intentos viven en memoria y se reinician con el servidor.
+
+## Archivos añadidos en esta etapa
+
+```
+src/domain/usuarios/usuario.ts                              # Usuario y entidad externa
+src/domain/permisos/rol.ts                                  # Rol editable
+src/application/comun.ts                                    # Error de negocio, enmascarado, tipo de documento
+src/application/auth/factor-contrasena-segura.ts            # Producto nuevo (Factory Method)
+src/application/auth/flujo-contrasena-segura.ts             # Creador nuevo (Factory Method)
+src/application/auth/autenticador-con-auditoria.ts          # Decorador nuevo
+src/application/auth/servicio-inicio-sesion.ts              # Iniciar sesión con los 3 factores
+src/application/credencial/director-credenciales-por-rol.ts # Director nuevo (Builder)
+src/application/permisos/gestor-roles.ts                    # Catálogo de permisos y roles como árbol Composite
+src/application/usuarios/servicio-usuarios.ts               # Registro y gestión de usuarios
+src/application/integracion/servicio-integracion.ts         # OAuth2 y validación de identidad
+src/infrastructure/seguridad/criptografia.ts                # scrypt, AES-256-GCM y huella HMAC
+src/infrastructure/seguridad/tokens-jwt.ts                  # JWT firmado
+src/infrastructure/persistencia/coleccion-json.ts           # Lista de objetos en un archivo JSON
+src/infrastructure/persistencia/repositorio-usuarios-archivo.ts # Usuarios cifrados (sujeto real del Proxy)
+src/infrastructure/auditoria/bitacora-auditoria.ts          # Bitácora encadenada
+src/web/app.ts, seguridad-http.ts, rutas/                   # Arma el sistema y expone la API REST
+public/js/                                                  # Interfaz: registro, sesión, perfil, panel, API
+.env.example                                                # Configuración de ejemplo
 ```
 
 ---

@@ -1,7 +1,7 @@
 {
   "name": "sistema-gestion-digital",
   "version": "1.0.0",
-  "description": "Sistema de Gestión de Identidad Digital (SGID) - ETAPA 10: patrones Flyweight y Proxy para documentos e identidad",
+  "description": "Sistema de Gestión de Identidad Digital (SGID): autenticación biométrica multifactor, roles y permisos, integración gubernamental y seguridad, con 9 patrones de diseño",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
@@ -9,7 +9,8 @@
     "demo": "npm run build && node dist/demo-interactivo.js",
     "web": "npm run build && node dist/web/server.js",
     "test": "jest --config jest.config.js",
-    "test:watch": "jest --watch"
+    "test:watch": "jest --watch",
+    "datos:borrar": "node -e \"require('fs').rmSync('data',{recursive:true,force:true});console.log('Carpeta data/ borrada')\""
   },
   "keywords": [
     "singleton",
@@ -23,7 +24,10 @@
     "proxy",
     "hexagonal",
     "identidad-digital",
-    "typescript"
+    "typescript",
+    "oauth2",
+    "jwt",
+    "auditoria"
   ],
   "author": "Keanon Jeanpierre Angarita Olarte",
   "license": "MIT",

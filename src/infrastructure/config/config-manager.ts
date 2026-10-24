@@ -18,6 +18,8 @@ export interface ConfiguracionSGID {
   jwtSecret: string;
   jwtExpiracionMinutos: number;
   biometriaUmbralMinimo: number; // valor entre 0 y 1
+  cifradoClave: string; // clave para cifrar los datos sensibles guardados
+  datosDirectorio: string; // carpeta donde se guardan usuarios, roles y auditoría
   db: {
     host: string;
     puerto: number;
@@ -82,6 +84,8 @@ export class ConfigManager {
       jwtSecret: process.env.JWT_SECRET ?? 'clave-de-desarrollo-no-usar-en-produccion',
       jwtExpiracionMinutos: Number(process.env.JWT_EXPIRACION_MIN ?? 15),
       biometriaUmbralMinimo: Number(process.env.BIOMETRIA_UMBRAL ?? 0.85),
+      cifradoClave: process.env.DATOS_CLAVE ?? 'clave-de-cifrado-de-desarrollo',
+      datosDirectorio: process.env.SGID_DATOS_DIR ?? 'data',
       db: {
         host: process.env.DB_HOST ?? 'localhost',
         puerto: Number(process.env.DB_PORT ?? 5432),
@@ -114,6 +118,14 @@ export class ConfigManager {
 
     if (config.entorno === 'production' && config.jwtSecret.startsWith('clave-de-desarrollo')) {
       throw new Error('Configuración inválida: en producción debe definirse un JWT_SECRET propio.');
+    }
+
+    if (config.cifradoClave.trim().length < 16) {
+      throw new Error('Configuración inválida: DATOS_CLAVE debe tener al menos 16 caracteres.');
+    }
+
+    if (config.entorno === 'production' && config.cifradoClave.startsWith('clave-de-cifrado-de-desarrollo')) {
+      throw new Error('Configuración inválida: en producción debe definirse una DATOS_CLAVE propia.');
     }
   }
 }

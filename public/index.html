@@ -4,140 +4,282 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>SGID — Sistema de Gestión de Identidad Digital</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🛡️%3C/text%3E%3C/svg%3E" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <header class="encabezado">
     <div class="encabezado__marca">
-      <span class="escudo">🛡️</span>
+      <span class="escudo" aria-hidden="true">🛡️</span>
       <div>
         <strong>SGID</strong>
         <span>Sistema de Gestión de Identidad Digital</span>
       </div>
     </div>
-    <button id="btn-reset" class="boton boton--fantasma">Reiniciar demo</button>
+    <div id="sesion-actual" class="sesion-actual" hidden>
+      <span id="sesion-nombre"></span>
+      <span id="sesion-rol" class="chip chip--dorado"></span>
+      <button id="btn-cerrar-sesion" class="boton boton--fantasma">Cerrar sesión</button>
+    </div>
   </header>
 
+  <nav class="pestanas" aria-label="Secciones">
+    <button class="pestana" data-ir="inicio">🔐 Iniciar sesión</button>
+    <button class="pestana" data-ir="registro">📝 Registro</button>
+    <button class="pestana" data-ir="perfil" hidden>🪪 Mi perfil</button>
+    <button class="pestana" data-ir="admin" hidden>⚙️ Administración</button>
+    <button class="pestana" data-ir="gobierno">🏛️ API gubernamental</button>
+  </nav>
+
   <main class="contenedor">
-    <section class="tarjeta tarjeta--intro">
-      <p>
-        Cada factor se prueba en <strong>dos pasos</strong>: primero lo
-        <strong>registras</strong> (como la primera vez que configuras tu cuenta)
-        y luego intentas <strong>autenticarte</strong> con él. Nada viene
-        precargado: la contraseña la eliges tú, el código llega al azar y el
-        rostro se captura con tu cámara real.
-      </p>
-    </section>
+    <div id="aviso-configuracion" class="banda banda--dorada" hidden>
+      <strong>Primer arranque.</strong> Todavía no hay administrador: registra primero a la persona que
+      administrará el sistema. Ese registro queda guardado y desde su cuenta se gestionan roles y permisos.
+    </div>
 
-    <section class="tarjeta tarjeta--selector">
-      <label for="selector-factor"><strong>¿Con qué factor quieres probar la autenticación?</strong></label>
-      <select id="selector-factor">
-        <option value="contrasena">🔑 Contraseña</option>
-        <option value="token">📱 Código al teléfono</option>
-        <option value="rostro">🙂 Rostro (cámara real)</option>
-      </select>
-      <div id="progreso-factores" class="estado">Factores superados: ninguno todavía.</div>
-    </section>
+    <!-- ===================== INICIAR SESIÓN ===================== -->
+    <section class="vista" data-vista="inicio">
+      <div id="inicio-paso-1" class="tarjeta tarjeta--angosta">
+        <h2>¿Quién eres?</h2>
+        <p class="ayuda">Escribe tu documento. Luego tendrás que superar <strong>tres factores</strong>, en el orden que quieras:
+          algo que sabes (contraseña), algo que tienes (tu teléfono) y algo que eres (tu rostro).</p>
+        <form id="form-inicio" class="formulario">
+          <div class="fila">
+            <label>Tipo de documento<select name="tipoDocumento" class="tipos-documento"></select></label>
+            <label>Número<input name="numeroDocumento" required autocomplete="username" placeholder="1005184201" /></label>
+          </div>
+          <button class="boton">Continuar</button>
+          <div class="estado" data-estado></div>
+        </form>
+      </div>
 
-    <!-- Contraseña: Factory Method + Decorator -->
-    <section class="tarjeta" data-factor="contrasena">
-      <h2>🔑 Contraseña <span class="patron">Factory Method</span> <span class="patron">Decorator</span></h2>
-      <p class="ayuda">El Decorator agrega una bitácora y bloquea el factor tras 3 fallos seguidos.</p>
-
-      <div class="factor">
-        <label for="in-contrasena-registro">1. Registrar una contraseña nueva</label>
-        <div class="factor__fila">
-          <input id="in-contrasena-registro" type="password" placeholder="Elige una contraseña" />
-          <button id="btn-contrasena-registrar" class="boton boton--secundario">Registrar</button>
+      <div id="inicio-paso-2" hidden>
+        <div class="tarjeta tarjeta--progreso">
+          <div>
+            <h2 id="inicio-saludo">Hola</h2>
+            <p class="ayuda">Supera los tres factores. Cada uno está protegido con bitácora, auditoría y bloqueo a los 3 fallos.</p>
+          </div>
+          <ol class="progreso" id="progreso-factores">
+            <li data-factor="contraseña">🔑 Contraseña</li>
+            <li data-factor="token-telefono">📱 Código</li>
+            <li data-factor="rostro">🙂 Rostro</li>
+          </ol>
+          <button id="btn-otra-persona" class="boton boton--secundario">Cambiar de persona</button>
         </div>
-        <div id="estado-registro-contrasena" class="estado"></div>
-      </div>
 
-      <div class="factor">
-        <label for="in-contrasena">2. Iniciar sesión con esa contraseña</label>
-        <div class="factor__fila">
-          <input id="in-contrasena" type="password" placeholder="Escribe la contraseña para entrar" />
-          <button id="btn-contrasena" class="boton">Iniciar sesión</button>
+        <div class="rejilla-factores">
+          <article class="tarjeta" data-tarjeta-factor="contraseña">
+            <h3>🔑 Contraseña <span class="patron">Factory Method</span><span class="patron">Decorator</span></h3>
+            <p class="ayuda">Se compara contra un <strong>hash scrypt</strong>; la contraseña nunca se guarda en claro.</p>
+            <form id="form-contrasena" class="formulario">
+              <input type="password" name="valor" required autocomplete="current-password" placeholder="Tu contraseña" />
+              <button class="boton">Verificar</button>
+            </form>
+            <div class="estado" data-estado></div>
+            <ul class="bitacora" id="bitacora-contrasena"></ul>
+          </article>
+
+          <article class="tarjeta" data-tarjeta-factor="token-telefono">
+            <h3>📱 Código al teléfono <span class="patron">Adapter</span></h3>
+            <p class="ayuda">Código aleatorio de un solo uso, válido 5 minutos. Se envía por el primer proveedor de SMS que responda.</p>
+            <button id="btn-enviar-codigo" class="boton boton--secundario">Enviar código</button>
+            <div id="envios-sms" class="chips"></div>
+            <div id="telefono-simulado" class="telefono" hidden>
+              <div class="telefono__barra">📶 Teléfono simulado <span id="telefono-numero"></span></div>
+              <div id="telefono-mensajes" class="telefono__mensajes"></div>
+            </div>
+            <form id="form-codigo" class="formulario">
+              <input name="valor" required inputmode="numeric" maxlength="6" placeholder="Código de 6 dígitos" autocomplete="one-time-code" />
+              <button class="boton">Verificar</button>
+            </form>
+            <div class="estado" data-estado></div>
+          </article>
+
+          <article class="tarjeta" data-tarjeta-factor="rostro">
+            <h3>🙂 Rostro <span class="patron">Factory Method</span><span class="patron">Singleton</span></h3>
+            <p class="ayuda">Se compara tu rostro con la plantilla cifrada del registro. Umbral (Singleton): <strong class="umbral-facial">…</strong></p>
+            <video class="camara" autoplay muted playsinline></video>
+            <div class="fila-botones">
+              <button class="boton boton--secundario" data-activar-camara>Activar cámara</button>
+              <button id="btn-verificar-rostro" class="boton" disabled>Verificar rostro</button>
+            </div>
+            <div class="estado" data-estado></div>
+            <div id="medidor-rostro"></div>
+          </article>
         </div>
-        <div id="estado-contrasena" class="estado"></div>
-        <ul id="bitacora" class="bitacora"></ul>
+
+        <div class="tarjeta tarjeta--entrar">
+          <div>
+            <h3>🚪 Entrar al sistema <span class="patron">Builder</span><span class="patron">Bridge</span></h3>
+            <p class="ayuda">Se arma tu credencial con los permisos de tu rol, se firma como JWT y se te avisa del inicio de sesión por SMS y correo.</p>
+          </div>
+          <button id="btn-completar" class="boton boton--grande" disabled>Entrar</button>
+          <div class="estado" data-estado></div>
+        </div>
       </div>
     </section>
 
-    <!-- Token: Adapter -->
-    <section class="tarjeta" data-factor="token">
-      <h2>📱 Código al teléfono <span class="patron">Adapter</span></h2>
-      <p class="ayuda">El código se genera al azar y se "envía" por dos proveedores de SMS con interfaces distintas, adaptados a una sola forma de uso. Para verlo hay que revisar la bandeja, igual que en un teléfono real.</p>
+    <!-- ===================== REGISTRO ===================== -->
+    <section class="vista" data-vista="registro">
+      <div class="tarjeta tarjeta--angosta">
+        <h2 id="registro-titulo">Registro de ciudadano</h2>
+        <p class="ayuda" id="registro-ayuda">Los nuevos registros entran con el rol <strong>ciudadano</strong>. Solo un administrador puede cambiarlo.</p>
+        <form id="form-registro" class="formulario">
+          <label>Nombre completo<input name="nombreCompleto" required autocomplete="name" placeholder="Ana Pérez" /></label>
+          <div class="fila">
+            <label>Tipo de documento<select name="tipoDocumento" class="tipos-documento"></select></label>
+            <label><span>Número <span class="ayuda-campo">(validado por el Flyweight)</span></span><input name="numeroDocumento" required placeholder="1005184201" /></label>
+          </div>
+          <div class="fila">
+            <label>Teléfono<input name="telefono" required inputmode="tel" autocomplete="tel" placeholder="3001234567" /></label>
+            <label><span>Correo <span class="ayuda-campo">(opcional)</span></span><input name="correo" type="email" autocomplete="email" placeholder="ana@correo.gov.co" /></label>
+          </div>
+          <div class="fila">
+            <label>Contraseña<input name="contrasena" type="password" required minlength="8" autocomplete="new-password" placeholder="Mínimo 8, con letras y números" /></label>
+            <label>Repite la contraseña<input name="confirmacion" type="password" required minlength="8" autocomplete="new-password" /></label>
+          </div>
 
-      <div class="factor">
-        <label>1. Enviar el código</label>
-        <div class="factor__fila">
-          <button id="btn-enviar-sms" class="boton boton--secundario">Enviar código</button>
-          <button id="btn-ver-sms" class="boton boton--secundario">📬 Ver bandeja del teléfono</button>
-        </div>
-        <div id="resultado-sms" class="resultado"></div>
-        <div id="bandeja-sms" class="estado"></div>
-      </div>
+          <fieldset class="captura-rostro">
+            <legend>Rostro</legend>
+            <p class="ayuda">Se guarda una huella matemática (128 números), cifrada con AES-256-GCM. No se guarda ninguna foto.
+              <strong>Requiere cámara e internet</strong> (face-api.js se descarga la primera vez).</p>
+            <video class="camara" autoplay muted playsinline></video>
+            <div class="fila-botones">
+              <button type="button" class="boton boton--secundario" data-activar-camara>Activar cámara</button>
+              <button type="button" id="btn-capturar-rostro" class="boton boton--secundario" disabled>Capturar rostro</button>
+            </div>
+            <div class="estado" id="estado-captura"></div>
+          </fieldset>
 
-      <div class="factor">
-        <label for="in-token">2. Escribir el código recibido</label>
-        <div class="factor__fila">
-          <input id="in-token" type="text" placeholder="Código de 6 dígitos" />
-          <button id="btn-token" class="boton">Verificar</button>
-        </div>
-        <div id="estado-token" class="estado"></div>
+          <button class="boton boton--grande">Registrarme</button>
+          <div class="estado" data-estado></div>
+        </form>
       </div>
     </section>
 
-    <!-- Rostro: cámara real -->
-    <section class="tarjeta" data-factor="rostro">
-      <h2>🙂 Rostro (cámara real) <span class="patron">Factory Method</span></h2>
-      <p class="ayuda">
-        Usa tu propia cámara. El navegador calcula un "descriptor" de tu rostro
-        (una huella matemática, no una foto) y el servidor compara qué tan
-        parecidos son el registro y el intento. Pruébalo contigo mismo y
-        después con otra persona, para ver que sí distingue. Umbral mínimo
-        configurado (ETAPA 2, <code>BIOMETRIA_UMBRAL</code>): <strong id="umbral-facial">...</strong>
-      </p>
-
-      <video id="video" width="280" height="210" autoplay muted playsinline></video>
-
-      <div class="factor__fila factor__fila--camara">
-        <button id="btn-camara" class="boton boton--secundario">Activar cámara</button>
-        <button id="btn-rostro-registrar" class="boton boton--secundario" disabled>1. Registrar rostro</button>
-        <button id="btn-rostro" class="boton" disabled>2. Verificar rostro</button>
-      </div>
-      <div id="estado-rostro" class="estado"></div>
-      <div id="detalle-rostro" class="resultado"></div>
+    <!-- ===================== PERFIL ===================== -->
+    <section class="vista" data-vista="perfil">
+      <div id="perfil-contenido" class="rejilla-perfil"></div>
     </section>
 
-    <!-- Un solo caso de uso: iniciar sesión. Por debajo combina Builder, Bridge, Proxy, Composite y Flyweight. -->
-    <section class="tarjeta">
-      <h2>🚪 Iniciar sesión <span class="patron">Builder</span> <span class="patron">Bridge</span> <span class="patron">Proxy</span> <span class="patron">Composite</span> <span class="patron">Flyweight</span></h2>
-      <p class="ayuda">
-        Disponible cuando los tres factores de arriba estén en verde. Con un
-        solo clic se emite tu credencial, se avisa que está lista, se
-        consulta tu identidad (solo si tienes permiso), se revisan los
-        accesos de tu rol y se valida tu documento: todo es un único perfil,
-        no pasos sueltos.
-      </p>
-      <div class="factor__fila">
-        <select id="in-rol">
-          <option value="ciudadano">Ciudadano</option>
-          <option value="administrador">Administrador</option>
-          <option value="entidadExterna">Entidad externa</option>
-        </select>
-        <button id="btn-emitir" class="boton">Iniciar sesión</button>
+    <!-- ===================== ADMINISTRACIÓN ===================== -->
+    <section class="vista" data-vista="admin">
+      <nav class="subpestanas" id="admin-pestanas">
+        <button class="subpestana" data-admin="roles" data-permiso="gestionar-roles">Roles y permisos</button>
+        <button class="subpestana" data-admin="usuarios" data-permiso="gestionar-usuarios">Usuarios</button>
+        <button class="subpestana" data-admin="entidades" data-permiso="gestionar-entidades">Entidades externas</button>
+        <button class="subpestana" data-admin="auditoria" data-permiso="ver-auditoria">Auditoría</button>
+      </nav>
+
+      <div class="panel-admin" data-panel="roles">
+        <div class="rejilla-roles">
+          <div class="tarjeta">
+            <div class="cabecera-tarjeta">
+              <h3>Roles <span class="patron">Composite</span></h3>
+              <button id="btn-nuevo-rol" class="boton boton--secundario">+ Nuevo rol</button>
+            </div>
+            <p class="ayuda">Cada rol es un árbol: grupos completos de permisos y permisos sueltos, tratados igual.</p>
+            <ul id="lista-roles" class="lista-roles"></ul>
+          </div>
+          <div class="tarjeta" id="editor-rol"></div>
+        </div>
       </div>
-      <div id="resultado-credencial" class="resultado"></div>
+
+      <div class="panel-admin" data-panel="usuarios">
+        <div class="tarjeta">
+          <h3>Usuarios registrados</h3>
+          <p class="ayuda">Los datos sensibles se ven enmascarados. Quitar permisos aplica de inmediato, incluso a sesiones abiertas;
+            los permisos nuevos llegan cuando la persona vuelve a iniciar sesión. "Desbloquear" reinicia el límite de intentos (Decorator).</p>
+          <div class="tabla-desplazable"><table class="tabla" id="tabla-usuarios"></table></div>
+        </div>
+      </div>
+
+      <div class="panel-admin" data-panel="entidades">
+        <div class="tarjeta">
+          <h3>Registrar entidad gubernamental</h3>
+          <p class="ayuda">La entidad recibe un <code>client_id</code> y un <code>client_secret</code> para consumir la API.
+            El secreto se muestra <strong>una sola vez</strong>; el sistema solo guarda su hash.</p>
+          <form id="form-entidad" class="formulario formulario--linea">
+            <input name="nombre" required placeholder="Ej.: Hospital Universitario del Valle" />
+            <select name="rol" id="entidad-rol"></select>
+            <button class="boton">Registrar</button>
+          </form>
+          <div class="estado" data-estado></div>
+          <div id="secreto-entidad"></div>
+        </div>
+        <div class="tarjeta">
+          <h3>Entidades registradas</h3>
+          <div class="tabla-desplazable"><table class="tabla" id="tabla-entidades"></table></div>
+        </div>
+      </div>
+
+      <div class="panel-admin" data-panel="auditoria">
+        <div class="tarjeta">
+          <div class="cabecera-tarjeta">
+            <h3>Bitácora de auditoría</h3>
+            <div class="fila-botones">
+              <button id="btn-refrescar-auditoria" class="boton boton--secundario">Actualizar</button>
+              <button id="btn-exportar-auditoria" class="boton boton--secundario" data-permiso="exportar-auditoria">Exportar</button>
+            </div>
+          </div>
+          <p class="ayuda">Cada registro guarda el hash SHA-256 del anterior. Si alguien edita o borra una línea del archivo
+            <code>data/auditoria.jsonl</code>, la cadena se rompe y se ve aquí.</p>
+          <div id="integridad-auditoria"></div>
+          <div class="tabla-desplazable tabla-desplazable--alta"><table class="tabla tabla--compacta" id="tabla-auditoria"></table></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== API GUBERNAMENTAL ===================== -->
+    <section class="vista" data-vista="gobierno">
+      <div class="tarjeta">
+        <h2>Integración con servicios gubernamentales</h2>
+        <p class="ayuda">Así se ve el sistema desde <strong>otra entidad del Estado</strong> (un hospital, una notaría, una alcaldía).
+          No necesita implementar su propia autenticación: le pregunta al SGID si un documento corresponde a una persona registrada.
+          La respuesta es mínima: <em>sí o no</em>, sin entregar datos personales.</p>
+        <ol class="pasos-api">
+          <li>El administrador registra la entidad y le entrega <code>client_id</code> + <code>client_secret</code>.</li>
+          <li>La entidad pide un token: <code>POST /api/gov/v1/oauth/token</code> (OAuth2 client credentials).</li>
+          <li>Con el token consulta: <code>POST /api/gov/v1/identidades/validar</code>. El <strong>Proxy</strong> exige el permiso
+            <code>validar-identidad-externa</code> y el <strong>Flyweight</strong> valida el formato del documento.</li>
+        </ol>
+      </div>
+
+      <div class="rejilla-api">
+        <div class="tarjeta">
+          <h3>Paso 1 · Obtener token <span class="patron">Factory Method</span><span class="patron">Decorator</span></h3>
+          <form id="form-gov-token" class="formulario">
+            <label>client_id<input name="client_id" required placeholder="gov-…" /></label>
+            <label>client_secret<input name="client_secret" required type="password" /></label>
+            <button class="boton">Solicitar token</button>
+          </form>
+          <div id="gov-token-resultado"></div>
+        </div>
+
+        <div class="tarjeta">
+          <h3>Paso 2 · Validar identidad <span class="patron">Proxy</span><span class="patron">Flyweight</span></h3>
+          <form id="form-gov-validar" class="formulario">
+            <label>access_token<input name="token" required placeholder="Se llena solo al obtener el token" /></label>
+            <div class="fila">
+              <label>Tipo<select name="tipoDocumento" class="tipos-documento"></select></label>
+              <label>Número<input name="numeroDocumento" required /></label>
+            </div>
+            <label><span>Nombre a confirmar <span class="ayuda-campo">(opcional)</span></span><input name="nombreCompleto" /></label>
+            <button class="boton">Validar</button>
+          </form>
+          <div id="gov-validar-resultado"></div>
+        </div>
+      </div>
     </section>
   </main>
 
   <footer class="pie">
-    Proyecto académico SGID · patrones: Singleton · Factory Method · Builder · Adapter · Bridge · Composite · Decorator · Flyweight · Proxy
+    Proyecto académico SGID · Singleton · Factory Method · Builder · Adapter · Bridge · Composite · Decorator · Flyweight · Proxy
   </footer>
 
+  <div id="notificacion" class="notificacion" role="status" hidden></div>
+
   <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
-  <script defer src="app.js"></script>
+  <script type="module" src="js/app.js"></script>
 </body>
 </html>
