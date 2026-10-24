@@ -1,0 +1,178 @@
+/* Portal de una alcaldía de prueba: un sitio distinto a SGID que lo usa para iniciar sesión. */
+:root {
+  --verde: #0f6b4f;
+  --verde-oscuro: #0b5540;
+  --texto: #1f2328;
+  --suave: #656d76;
+  --borde: #dfe3e8;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+body {
+  margin: 0;
+  font-family: Georgia, 'Times New Roman', serif;
+  background: #f4f4f0;
+  color: var(--texto);
+}
+
+.cabecera {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 24px;
+  background: var(--verde);
+  color: white;
+}
+
+.cabecera svg {
+  width: 28px;
+  height: 28px;
+}
+
+.cabecera div {
+  display: flex;
+  flex-direction: column;
+}
+
+.cabecera span {
+  font-size: 13px;
+  opacity: 0.85;
+}
+
+.contenido {
+  max-width: 520px;
+  margin: 40px auto;
+  padding: 0 16px;
+}
+
+.tarjeta {
+  background: white;
+  border: 1px solid var(--borde);
+  border-radius: 4px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+h1 {
+  margin: 0;
+  font-size: 22px;
+}
+
+p {
+  margin: 0;
+  color: var(--suave);
+}
+
+.boton-sgid,
+.boton-linea {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 6px;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.boton-sgid {
+  border: 1px solid #1d4ed8;
+  background: #1d4ed8;
+  color: white;
+}
+
+.boton-sgid:hover {
+  background: #1e40af;
+}
+
+.boton-linea {
+  align-self: flex-start;
+  border: 1px solid var(--borde);
+  background: white;
+  color: var(--texto);
+}
+
+svg.lucide {
+  width: 18px;
+  height: 18px;
+}
+
+.mensaje {
+  color: #c62828;
+}
+
+details {
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-size: 14px;
+  border-top: 1px solid var(--borde);
+  padding-top: 12px;
+}
+
+summary {
+  cursor: pointer;
+  color: var(--suave);
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+input {
+  padding: 8px 10px;
+  border: 1px solid var(--borde);
+  border-radius: 4px;
+  font: inherit;
+}
+
+small {
+  color: var(--suave);
+}
+
+.datos {
+  margin: 0;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 8px 16px;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-size: 14px;
+}
+
+.datos dt {
+  color: var(--suave);
+}
+
+.datos dd {
+  margin: 0;
+}
+
+pre {
+  margin: 10px 0 0;
+  padding: 10px;
+  background: #f6f7f8;
+  border: 1px solid var(--borde);
+  border-radius: 4px;
+  font-size: 12px;
+  overflow-x: auto;
+}

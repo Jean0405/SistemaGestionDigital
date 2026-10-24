@@ -7,7 +7,7 @@ import express from 'express';
 import fs from 'fs';
 import path from 'path';
 import { ConfigManager } from '../infrastructure/config/config-manager';
-import { EntidadExterna } from '../domain/usuarios/usuario';
+import { ServicioConectado } from '../domain/usuarios/usuario';
 import { BitacoraAuditoria } from '../infrastructure/auditoria/bitacora-auditoria';
 import { ColeccionJson } from '../infrastructure/persistencia/coleccion-json';
 import { RepositorioUsuariosArchivo } from '../infrastructure/persistencia/repositorio-usuarios-archivo';
@@ -36,8 +36,8 @@ export function crearSistema(directorio?: string) {
   const roles = new GestorRoles(new ColeccionJson(path.join(carpeta, 'roles.json'), 'nombre'), auditoria);
   const usuarios = new ServicioUsuarios(repositorioUsuarios, roles, cifrador, auditoria);
   const sesiones = new ServicioInicioSesion(usuarios, roles, tokens, auditoria);
-  const entidades = new ColeccionJson<EntidadExterna>(path.join(carpeta, 'entidades.json'), 'clienteId');
-  const integracion = new ServicioIntegracion(entidades, repositorioUsuarios, usuarios, roles, tokens, auditoria);
+  const servicios = new ColeccionJson<ServicioConectado>(path.join(carpeta, 'servicios.json'), 'clienteId');
+  const integracion = new ServicioIntegracion(servicios, repositorioUsuarios, usuarios, tokens, auditoria);
 
   return {
     config,
@@ -68,7 +68,11 @@ export function crearApp(directorio?: string) {
   app.use('/api/gov/v1', rutasGobierno(sistema));
   app.use('/api/admin', rutasAdmin(sistema));
   app.use('/api', rutasSesion(sistema));
-  app.use(express.static(path.join(__dirname, '../../public')));
+
+  // Aquí llegan las personas que vienen desde un servicio del Estado ("Iniciar sesión con SGID").
+  const publico = path.join(__dirname, '../../public');
+  app.get('/autorizar', (_req, res) => res.sendFile(path.join(publico, 'index.html')));
+  app.use(express.static(publico));
   app.use(manejarErrores);
 
   return { app, sistema };

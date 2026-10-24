@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Alcaldía de Villa Esperanza · Trámites en línea</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='4' fill='%230f6b4f'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="/servicio-demo.css" />
+</head>
+<body>
+  <header class="cabecera">
+    <i data-lucide="landmark"></i>
+    <div>
+      <strong>Alcaldía de Villa Esperanza</strong>
+      <span>Trámites en línea · servicio de prueba</span>
+    </div>
+  </header>
+
+  <main class="contenido">
+    <section id="vista-ingreso" class="tarjeta">
+      <h1>Ingresa a tus trámites</h1>
+      <p>Esta alcaldía no tiene usuarios propios: usa SGID para saber quién eres.</p>
+      <button id="btn-sgid" class="boton-sgid"><i data-lucide="shield-check"></i>Iniciar sesión con SGID</button>
+      <p id="mensaje" class="mensaje" hidden></p>
+
+      <details id="configuracion">
+        <summary>Credenciales del servicio</summary>
+        <form id="form-configuracion">
+          <label>client_id<input name="clienteId" required /></label>
+          <label>client_secret<input name="secreto" required type="password" /></label>
+          <small>Se obtienen en SGID › Administración › Servicios conectados.</small>
+        </form>
+      </details>
+    </section>
+
+    <section id="vista-bienvenida" class="tarjeta" hidden>
+      <h1 id="bienvenida"></h1>
+      <dl id="datos-persona" class="datos"></dl>
+      <details>
+        <summary>Respuesta de SGID</summary>
+        <pre id="respuesta-sgid"></pre>
+      </details>
+      <button id="btn-salir" class="boton-linea"><i data-lucide="log-out"></i>Salir</button>
+    </section>
+  </main>
+
+  <script defer src="https://cdn.jsdelivr.net/npm/lucide@0.344.0/dist/umd/lucide.min.js"></script>
+  <script type="module" src="/js/servicio-demo.js"></script>
+</body>
+</html>

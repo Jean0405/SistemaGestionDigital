@@ -1,10 +1,9 @@
-// Panel de administración: roles y permisos (Composite), usuarios, entidades externas y auditoría.
+// Panel de administración: roles y permisos, usuarios, servicios conectados y auditoría.
 
-import { api, datosFormulario, estado, fecha, h, mostrarEstado, notificar, pintar } from './util.js';
+import { api, datosFormulario, estado, fecha, h, icono, mostrarEstado, notificar, pintar } from './util.js';
 
 let roles = [];
 let rolAbierto = null; // nombre del rol que está en el editor; null = rol nuevo
-let alProbarEntidad = () => {};
 
 const puede = (permiso) => estado.perfil?.panel.includes(permiso);
 const mostrarError = (datos) => notificar(datos.error ?? 'Algo salió mal.', 'error');
@@ -27,25 +26,25 @@ function pintarListaRoles() {
     document.getElementById('lista-roles'),
     roles.map(
       (rol) => h`<li><button class="item-rol ${rol.nombre === rolAbierto ? 'item-rol--activo' : ''}" data-rol="${rol.nombre}">
-        <strong>${rol.nombre}</strong> ${rol.base ? h`<span class="chip">base</span>` : ''}
-        <small>${rol.permisos.length} permiso(s) · ${rol.enUso} en uso</small>
+        <strong>${rol.nombre}</strong> ${rol.base ? h`<span class="etiqueta">base</span>` : ''}
+        <small>${rol.permisos.length} permisos · ${rol.enUso} usuarios</small>
       </button></li>`,
     ),
   );
 }
 
-/** Casillas del catálogo: un grupo completo (nodo compuesto) o permisos sueltos (hojas). */
+/** Casillas del catálogo: un grupo completo o permisos sueltos. */
 function casillasDelCatalogo(marcados) {
   return Object.entries(estado.config.catalogoDePermisos).map(
     ([grupo, { descripcion, permisos }]) => h`<fieldset class="grupo-permisos">
-      <label class="grupo-permisos__grupo">
+      <label class="grupo-permisos__grupo" title="${descripcion}">
         <input type="checkbox" data-grupo="${grupo}" ${marcados.has(grupo) ? 'checked' : ''} />
-        📁 <strong>${grupo}</strong> <small>grupo completo · ${descripcion}</small>
+        ${grupo} <span class="etiqueta">grupo completo</span>
       </label>
       ${Object.entries(permisos).map(
-        ([permiso, detalle]) => h`<label class="grupo-permisos__permiso">
+        ([permiso, detalle]) => h`<label title="${detalle}">
           <input type="checkbox" data-permiso="${permiso}" data-padre="${grupo}" ${marcados.has(permiso) ? 'checked' : ''} />
-          🔹 ${permiso} <small>${detalle}</small>
+          ${permiso}
         </label>`,
       )}
     </fieldset>`,
@@ -56,18 +55,17 @@ function pintarEditor() {
   const rol = roles.find((r) => r.nombre === rolAbierto);
   pintar(
     document.getElementById('editor-rol'),
-    h`<h3>${rol ? h`Editar rol <code>${rol.nombre}</code>` : 'Nuevo rol'}</h3>
+    h`<h3>${rol ? h`Editar <code>${rol.nombre}</code>` : 'Nuevo rol'}</h3>
     <form id="form-rol" class="formulario">
       <div class="fila">
-        <label>Nombre<input name="nombre" required value="${rol?.nombre ?? ''}" ${rol ? 'disabled' : ''} placeholder="ej.: auditor-externo" /></label>
-        <label>Descripción<input name="descripcion" value="${rol?.descripcion ?? ''}" placeholder="Para qué sirve este rol" /></label>
+        <label>Nombre<input name="nombre" required value="${rol?.nombre ?? ''}" ${rol ? 'disabled' : ''} placeholder="ej.: auditor" /></label>
+        <label>Descripción<input name="descripcion" value="${rol?.descripcion ?? ''}" /></label>
       </div>
-      <p class="ayuda">Si marcas un <strong>grupo completo</strong>, sus permisos quedan incluidos (también los que se le agreguen después).</p>
       <div class="catalogo">${casillasDelCatalogo(new Set(rol?.componentes ?? []))}</div>
       <div class="vista-previa" id="vista-previa-rol"></div>
       <div class="fila-botones">
-        <button class="boton">${rol ? 'Guardar cambios' : 'Crear rol'}</button>
-        ${rol && !rol.base ? h`<button type="button" class="boton boton--peligro" id="btn-eliminar-rol">Eliminar rol</button>` : ''}
+        <button class="boton">${rol ? 'Guardar' : 'Crear rol'}</button>
+        ${rol && !rol.base ? h`<button type="button" class="boton boton--peligro" id="btn-eliminar-rol">${icono('trash-2')}Eliminar</button>` : ''}
       </div>
       <div class="estado" data-estado></div>
     </form>`,
@@ -89,10 +87,7 @@ function actualizarCasillas(formulario) {
     });
   });
   const efectivos = [...formulario.querySelectorAll('[data-permiso]:checked')].map((c) => c.dataset.permiso);
-  pintar(
-    document.getElementById('vista-previa-rol'),
-    h`<strong>Permisos efectivos (${efectivos.length}):</strong> ${efectivos.map((p) => h`<code>${p}</code> `)}`,
-  );
+  pintar(document.getElementById('vista-previa-rol'), h`Permisos (${efectivos.length}): ${efectivos.map((p) => h`<code>${p}</code> `)}`);
 }
 
 async function guardarRol(evento, formulario, rol) {
@@ -134,43 +129,51 @@ async function cargarUsuarios() {
     h`<thead><tr><th>Nombre</th><th>Documento</th><th>Teléfono</th><th>Rol</th><th>Registrado</th><th></th></tr></thead>
     <tbody>${lista.map(
       (u) => h`<tr>
-        <td>${u.nombreCompleto} ${u.usuarioId === yo ? h`<span class="chip chip--dorado">tú</span>` : ''}</td>
+        <td>${u.nombreCompleto} ${u.usuarioId === yo ? h`<span class="etiqueta">tú</span>` : ''}</td>
         <td>${u.documento}</td>
         <td>${u.telefono}</td>
         <td><select data-cambiar-rol="${u.usuarioId}" data-actual="${u.rol}" ${u.usuarioId === yo ? 'disabled' : ''}>
           ${nombresRoles.map((r) => h`<option ${r === u.rol ? 'selected' : ''}>${r}</option>`)}
         </select></td>
         <td>${fecha(u.creadoEn)}</td>
-        <td><button class="boton boton--secundario boton--chico" data-desbloquear="${u.usuarioId}">Desbloquear</button></td>
+        <td><button class="boton boton--linea boton--chico" data-desbloquear="${u.usuarioId}">${icono('unlock')}Desbloquear</button></td>
       </tr>`,
     )}</tbody>`,
   );
 }
 
-// ===================== Entidades externas =====================
+// ===================== Servicios conectados =====================
 
-async function cargarEntidades() {
-  const { ok, datos: lista } = await api('GET', '/api/admin/entidades');
+async function cargarServicios() {
+  const { ok, datos: lista } = await api('GET', '/api/admin/servicios');
   if (!ok) return mostrarError(lista);
-  const nombresRoles = puede('gestionar-roles') ? (await traerRoles()).map((r) => r.nombre) : ['entidad-externa'];
-  pintar(document.getElementById('entidad-rol'), nombresRoles.map((r) => h`<option ${r === 'entidad-externa' ? 'selected' : ''}>${r}</option>`));
 
   pintar(
-    document.getElementById('tabla-entidades'),
+    document.getElementById('tabla-servicios'),
     lista.length === 0
-      ? h`<tbody><tr><td class="vacio">Todavía no hay entidades registradas.</td></tr></tbody>`
-      : h`<thead><tr><th>Entidad</th><th>client_id</th><th>Rol</th><th>Estado</th><th>Registrada</th><th></th></tr></thead>
+      ? h`<tbody><tr><td class="vacio">Todavía no hay servicios conectados.</td></tr></tbody>`
+      : h`<thead><tr><th>Servicio</th><th>client_id</th><th>URL de retorno</th><th>Estado</th><th>Conectado</th><th></th></tr></thead>
       <tbody>${lista.map(
-        (e) => h`<tr>
-          <td>${e.nombre}</td>
-          <td><code>${e.clienteId}</code></td>
-          <td>${e.rol}</td>
-          <td><span class="chip ${e.activa ? 'chip--ok' : 'chip--error'}">${e.activa ? 'activa' : 'revocada'}</span></td>
-          <td>${fecha(e.creadaEn)}</td>
-          <td>${e.activa ? h`<button class="boton boton--peligro boton--chico" data-revocar="${e.clienteId}">Revocar</button>` : ''}</td>
+        (s) => h`<tr>
+          <td>${s.nombre}</td>
+          <td><code>${s.clienteId}</code></td>
+          <td><code>${s.urlRetorno}</code></td>
+          <td><span class="etiqueta ${s.activo ? 'etiqueta--ok' : 'etiqueta--error'}">${s.activo ? 'activo' : 'desconectado'}</span></td>
+          <td>${fecha(s.creadoEn)}</td>
+          <td>${s.activo ? h`<button class="boton boton--peligro boton--chico" data-desconectar="${s.clienteId}">Desconectar</button>` : ''}</td>
         </tr>`,
       )}</tbody>`,
   );
+}
+
+/** Deja las credenciales a mano para el servicio de prueba y lo abre en otra pestaña. */
+function abrirServicioDePrueba(credenciales) {
+  try {
+    localStorage.setItem('sgid.servicioDePrueba', JSON.stringify(credenciales));
+  } catch {
+    // sin almacenamiento: se escriben a mano en la página del servicio
+  }
+  window.open('/servicio-demo.html', '_blank');
 }
 
 // ===================== Auditoría =====================
@@ -183,8 +186,8 @@ async function cargarAuditoria() {
   pintar(
     document.getElementById('integridad-auditoria'),
     integra
-      ? h`<div class="banda banda--ok">✅ Cadena íntegra: ${total} registro(s) verificados, ninguno alterado.</div>`
-      : h`<div class="banda banda--error">⛔ La cadena está rota en el registro #${rotaEn}: el archivo se modificó por fuera del sistema.</div>`,
+      ? h`<div class="integridad integridad--ok">${icono('check-circle')}Cadena íntegra · ${total} registros</div>`
+      : h`<div class="integridad integridad--error">${icono('x-circle')}Cadena rota en el registro #${rotaEn}</div>`,
   );
   pintar(
     document.getElementById('tabla-auditoria'),
@@ -195,9 +198,9 @@ async function cargarAuditoria() {
         <td>${fecha(r.fecha)}</td>
         <td>${r.actor}</td>
         <td><code>${r.accion}</code></td>
-        <td><span class="chip ${r.resultado === 'exito' ? 'chip--ok' : 'chip--error'}">${r.resultado}</span></td>
+        <td><span class="etiqueta ${r.resultado === 'exito' ? 'etiqueta--ok' : 'etiqueta--error'}">${r.resultado}</span></td>
         <td>${r.detalle}</td>
-        <td><code title="${r.hash}">${r.hash.slice(0, 10)}…</code></td>
+        <td><code title="${r.hash}">${r.hash.slice(0, 10)}</code></td>
       </tr>`,
     )}</tbody>`,
   );
@@ -215,7 +218,7 @@ async function exportarAuditoria() {
 
 // ===================== Navegación del panel =====================
 
-const cargadores = { roles: cargarRoles, usuarios: cargarUsuarios, entidades: cargarEntidades, auditoria: cargarAuditoria };
+const cargadores = { roles: cargarRoles, usuarios: cargarUsuarios, servicios: cargarServicios, auditoria: cargarAuditoria };
 
 function abrirSubpestana(nombre) {
   document.querySelectorAll('[data-admin]').forEach((b) => b.classList.toggle('subpestana--activa', b.dataset.admin === nombre));
@@ -233,8 +236,8 @@ export function abrirAdmin() {
   if (activa) abrirSubpestana(activa.dataset.admin);
 }
 
-export function iniciarAdmin({ probarEntidad }) {
-  alProbarEntidad = probarEntidad;
+export function iniciarAdmin() {
+  document.getElementById('servicio-url').value = `${location.origin}/servicio-demo.html`;
 
   document.getElementById('admin-pestanas').addEventListener('click', (evento) => {
     const boton = evento.target.closest('[data-admin]');
@@ -265,45 +268,46 @@ export function iniciarAdmin({ probarEntidad }) {
       return mostrarError(datos);
     }
     selector.dataset.actual = datos.rol;
-    notificar(`Rol cambiado a "${datos.rol}". Los permisos que pierde se cortan ya; los nuevos llegan al volver a entrar.`);
+    notificar(`Rol cambiado a "${datos.rol}".`);
   });
 
   tablaUsuarios.addEventListener('click', async (evento) => {
     const boton = evento.target.closest('[data-desbloquear]');
     if (!boton) return;
     const { ok, datos } = await api('POST', `/api/admin/usuarios/${boton.dataset.desbloquear}/desbloquear`);
-    if (ok) notificar('Intentos reiniciados: ya puede volver a intentar.');
+    if (ok) notificar('Intentos reiniciados.');
     else mostrarError(datos);
   });
 
-  document.getElementById('form-entidad').addEventListener('submit', async (evento) => {
+  document.getElementById('form-servicio').addEventListener('submit', async (evento) => {
     evento.preventDefault();
     const formulario = evento.target;
     const salida = formulario.parentElement.querySelector('[data-estado]');
-    const { ok, datos } = await api('POST', '/api/admin/entidades', datosFormulario(formulario));
+    const { ok, datos } = await api('POST', '/api/admin/servicios', datosFormulario(formulario));
     if (!ok) return mostrarEstado(salida, datos.error, false);
 
-    formulario.reset();
+    formulario.nombre.value = '';
     mostrarEstado(salida, '');
     pintar(
-      document.getElementById('secreto-entidad'),
-      h`<div class="secreto">
-        <strong>Credenciales de ${datos.nombre}</strong>: cópialas ahora, el secreto no se vuelve a mostrar.
+      document.getElementById('credenciales-servicio'),
+      h`<div class="credenciales">
+        <strong>${datos.nombre}</strong>
         <dl class="datos"><dt>client_id</dt><dd><code>${datos.clienteId}</code></dd><dt>client_secret</dt><dd><code>${datos.secreto}</code></dd></dl>
-        <button class="boton boton--secundario" id="btn-probar-entidad">Probar en "API gubernamental" →</button>
+        <small>El secreto no se vuelve a mostrar.</small>
+        <button class="boton boton--linea" id="btn-servicio-prueba">${icono('external-link')}Abrir servicio de prueba</button>
       </div>`,
     );
-    document.getElementById('btn-probar-entidad').addEventListener('click', () => alProbarEntidad(datos));
-    cargarEntidades();
+    document.getElementById('btn-servicio-prueba').addEventListener('click', () => abrirServicioDePrueba(datos));
+    cargarServicios();
   });
 
-  document.getElementById('tabla-entidades').addEventListener('click', async (evento) => {
-    const boton = evento.target.closest('[data-revocar]');
-    if (!boton || !confirm('¿Revocar esta entidad? Sus tokens dejarán de funcionar de inmediato.')) return;
-    const { ok, datos } = await api('DELETE', `/api/admin/entidades/${boton.dataset.revocar}`);
+  document.getElementById('tabla-servicios').addEventListener('click', async (evento) => {
+    const boton = evento.target.closest('[data-desconectar]');
+    if (!boton || !confirm('¿Desconectar este servicio? Ya no podrá iniciar sesión con SGID.')) return;
+    const { ok, datos } = await api('DELETE', `/api/admin/servicios/${boton.dataset.desconectar}`);
     if (!ok) return mostrarError(datos);
-    notificar('Entidad revocada.');
-    cargarEntidades();
+    notificar('Servicio desconectado.');
+    cargarServicios();
   });
 
   document.getElementById('btn-refrescar-auditoria').addEventListener('click', cargarAuditoria);

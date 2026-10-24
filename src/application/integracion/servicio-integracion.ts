@@ -1,155 +1,168 @@
 /**
- * Integración con otras entidades del Estado (un hospital, una notaría...).
+ * "Iniciar sesión con SGID" para los servicios del Estado (OAuth2, flujo
+ * authorization code). Ningún servicio implementa su propia autenticación:
  *
- * El administrador registra la entidad y le entrega un `client_id` y un
- * `client_secret`. Con ellos la entidad pide un token (OAuth2, "client
- * credentials") y pregunta si un documento es de una persona registrada.
- * La respuesta es mínima: sí o no, sin entregar los datos de la persona.
+ *  1. El servicio manda a la persona a SGID: /autorizar?client_id=...&redirect_uri=...&state=...
+ *  2. La persona se autentica con sus tres factores y acepta compartir sus datos.
+ *  3. SGID la devuelve al servicio con un código de un solo uso.
+ *  4. El servicio canjea el código (con su client_secret) por un token y pide los datos de la persona.
  */
 import { randomBytes } from 'crypto';
 import { Autenticador } from '../auth/autenticador';
 import { AutenticadorConAuditoria } from '../auth/autenticador-con-auditoria';
 import { AutenticadorConLimiteIntentos } from '../auth/autenticador-con-limite-intentos';
 import { FlujoContrasenaSegura } from '../auth/flujo-contrasena-segura';
-import { DirectorCredencialesPorRol } from '../credencial/director-credenciales-por-rol';
+import { CredencialDigitalBuilder } from '../credencial/credencial-digital-builder';
 import { RepositorioIdentidadProxy } from '../identidad/repositorio-identidad-proxy';
-import { GestorRoles } from '../permisos/gestor-roles';
 import { ServicioUsuarios } from '../usuarios/servicio-usuarios';
-import { ErrorDeNegocio, actorDe, enmascarar, obtenerTipoDocumento } from '../comun';
-import { DocumentoIdentidad } from '../../domain/documentos/documento-identidad';
-import { EntidadExterna, Usuario } from '../../domain/usuarios/usuario';
-import { CredencialDigital } from '../../domain/credencial/credencial-digital';
+import { ErrorDeNegocio, actorDe, obtenerTipoDocumento } from '../comun';
+import { ServicioConectado, Usuario } from '../../domain/usuarios/usuario';
 import { BitacoraAuditoria } from '../../infrastructure/auditoria/bitacora-auditoria';
 import { ColeccionJson } from '../../infrastructure/persistencia/coleccion-json';
 import { RepositorioUsuariosArchivo } from '../../infrastructure/persistencia/repositorio-usuarios-archivo';
 import { hashear } from '../../infrastructure/seguridad/criptografia';
-import { TokensJwt } from '../../infrastructure/seguridad/tokens-jwt';
+import { CredencialFirmada, TokensJwt } from '../../infrastructure/seguridad/tokens-jwt';
 
-export const PERMISO_VALIDAR = 'validar-identidad-externa';
+const VIGENCIA_CODIGO_MS = 5 * 60 * 1000;
 
-const actorEntidad = (e: EntidadExterna) => `Entidad: ${e.nombre} [${e.clienteId}]`;
-
-/** Compara nombres sin importar mayúsculas, tildes ni espacios de más. */
-function normalizar(nombre: string): string {
-  return nombre.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+/** Un código entregado al servicio y todavía sin canjear. */
+interface CodigoAutorizacion {
+  clienteId: string;
+  urlRetorno: string;
+  usuarioId: string;
+  factores: string[];
+  creadoEn: number;
 }
 
+const actorServicio = (s: ServicioConectado) => `Servicio: ${s.nombre} [${s.clienteId}]`;
+
 export class ServicioIntegracion {
-  /** El secreto de cada entidad, protegido con límite de intentos y auditoría (Decorator). */
-  private readonly protegidos = new Map<string, Autenticador>();
-  private readonly director: DirectorCredencialesPorRol;
+  private readonly codigos = new Map<string, CodigoAutorizacion>();
+  /** El secreto de cada servicio, protegido con límite de intentos y auditoría (Decorator). */
+  private readonly secretos = new Map<string, Autenticador>();
 
   constructor(
-    private readonly entidades: ColeccionJson<EntidadExterna>,
+    private readonly servicios: ColeccionJson<ServicioConectado>,
     private readonly identidades: RepositorioUsuariosArchivo,
     private readonly usuarios: ServicioUsuarios,
-    private readonly roles: GestorRoles,
     private readonly tokens: TokensJwt,
     private readonly auditoria: BitacoraAuditoria,
-  ) {
-    this.director = new DirectorCredencialesPorRol(roles);
-  }
+  ) {}
+
+  // --- Administración ---
 
   /** Lista sin el hash del secreto. */
   listar() {
-    return this.entidades.listar().map(({ secretoHash, ...entidad }) => entidad);
-  }
-
-  contarConRol(rol: string): number {
-    return this.entidades.listar().filter((e) => e.activa && e.rol === rol).length;
+    return this.servicios.listar().map(({ secretoHash, ...servicio }) => servicio);
   }
 
   /** Devuelve el secreto en claro una sola vez; después solo queda su hash. */
-  registrar(nombre: string, rol: string, quien: Usuario) {
+  conectar(nombre: string, urlRetorno: string, quien: Usuario) {
     nombre = String(nombre ?? '').trim();
-    if (nombre.length < 3 || nombre.length > 80) throw new ErrorDeNegocio('El nombre de la entidad debe tener entre 3 y 80 caracteres.');
-    if (!this.roles.buscar(rol)) throw new ErrorDeNegocio(`No existe el rol "${rol}".`, 404);
+    urlRetorno = String(urlRetorno ?? '').trim();
+    if (nombre.length < 3 || nombre.length > 80) throw new ErrorDeNegocio('El nombre del servicio debe tener entre 3 y 80 caracteres.');
+    if (!/^https?:\/\/\S+$/.test(urlRetorno)) throw new ErrorDeNegocio('La URL de retorno debe empezar con http:// o https://');
 
     const secreto = randomBytes(24).toString('base64url');
-    const entidad: EntidadExterna = {
+    const servicio: ServicioConectado = {
       clienteId: 'gov-' + randomBytes(6).toString('hex'),
       nombre,
-      rol,
+      urlRetorno,
       secretoHash: hashear(secreto),
-      activa: true,
-      creadaEn: Date.now(),
+      activo: true,
+      creadoEn: Date.now(),
     };
-    this.entidades.guardar(entidad);
-    this.auditoria.registrar({ actor: actorDe(quien), accion: 'entidades.registrar', resultado: 'exito', detalle: `${actorEntidad(entidad)} con rol ${rol}` });
-    return { clienteId: entidad.clienteId, secreto, nombre, rol };
+    this.servicios.guardar(servicio);
+    this.auditoria.registrar({ actor: actorDe(quien), accion: 'servicios.conectar', resultado: 'exito', detalle: actorServicio(servicio) });
+    return { clienteId: servicio.clienteId, secreto, nombre, urlRetorno };
   }
 
-  revocar(clienteId: string, quien: Usuario): void {
-    const entidad = this.entidades.buscar(clienteId);
-    if (!entidad) throw new ErrorDeNegocio('No existe esa entidad.', 404);
-    this.entidades.guardar({ ...entidad, activa: false });
-    this.auditoria.registrar({ actor: actorDe(quien), accion: 'entidades.revocar', resultado: 'exito', detalle: actorEntidad(entidad) });
+  desconectar(clienteId: string, quien: Usuario): void {
+    const servicio = this.servicios.buscar(clienteId);
+    if (!servicio) throw new ErrorDeNegocio('No existe ese servicio.', 404);
+    this.servicios.guardar({ ...servicio, activo: false });
+    this.auditoria.registrar({ actor: actorDe(quien), accion: 'servicios.desconectar', resultado: 'exito', detalle: actorServicio(servicio) });
   }
 
-  /** OAuth2 client credentials: el secreto se comprueba como una contraseña más (Factory Method). */
-  emitirToken(clienteId: string, secreto: string) {
-    const entidad = this.entidades.buscar(String(clienteId ?? ''));
-    if (!entidad || !entidad.activa) {
-      this.auditoria.registrar({ actor: `Cliente [${String(clienteId).slice(0, 24)}]`, accion: 'integracion.token', resultado: 'denegado', detalle: 'Cliente no registrado o revocado' });
+  // --- Paso 1 y 3: la persona llega desde el servicio y vuelve con un código ---
+
+  /** Comprueba que el servicio exista, esté activo y que la URL de retorno sea la registrada. */
+  servicioPara(clienteId: string, urlRetorno: string): ServicioConectado {
+    const servicio = this.servicios.buscar(String(clienteId ?? ''));
+    if (!servicio || !servicio.activo) throw new ErrorDeNegocio('El servicio que te envió aquí no está conectado a SGID.', 400, 'invalid_client');
+    if (servicio.urlRetorno !== urlRetorno) throw new ErrorDeNegocio('La URL de retorno no coincide con la registrada.', 400, 'invalid_request');
+    return servicio;
+  }
+
+  /** La persona, ya autenticada, acepta compartir su identidad: se crea el código y la URL para volver. */
+  autorizar(clienteId: string, urlRetorno: string, state: string, usuario: Usuario, factores: string[]): string {
+    const servicio = this.servicioPara(clienteId, urlRetorno);
+    const codigo = randomBytes(24).toString('base64url');
+    this.codigos.set(codigo, { clienteId, urlRetorno, usuarioId: usuario.usuarioId, factores, creadoEn: Date.now() });
+
+    this.auditoria.registrar({ actor: actorDe(usuario), accion: 'servicios.autorizar', resultado: 'exito', detalle: `Inició sesión en ${servicio.nombre}` });
+    const url = new URL(urlRetorno);
+    url.searchParams.set('code', codigo);
+    if (state) url.searchParams.set('state', state);
+    return url.toString();
+  }
+
+  // --- Paso 4: el servicio canjea el código y pide los datos ---
+
+  canjearCodigo(codigo: string, clienteId: string, secreto: string, urlRetorno: string) {
+    const servicio = this.servicios.buscar(String(clienteId ?? ''));
+    if (!servicio || !servicio.activo) throw new ErrorDeNegocio('Credenciales de cliente inválidas.', 401, 'invalid_client');
+
+    if (!this.secretos.has(servicio.clienteId)) {
+      const flujo = new FlujoContrasenaSegura(servicio.secretoHash);
+      this.secretos.set(servicio.clienteId, new AutenticadorConAuditoria(new AutenticadorConLimiteIntentos(flujo, 5), this.auditoria, actorServicio(servicio), 'secreto-cliente'));
+    }
+    if (!this.secretos.get(servicio.clienteId)!.autenticar(String(secreto ?? '')).autenticado) {
       throw new ErrorDeNegocio('Credenciales de cliente inválidas.', 401, 'invalid_client');
     }
 
-    if (!this.protegidos.has(entidad.clienteId)) {
-      const flujo = new FlujoContrasenaSegura(entidad.secretoHash);
-      this.protegidos.set(entidad.clienteId, new AutenticadorConAuditoria(new AutenticadorConLimiteIntentos(flujo, 5), this.auditoria, actorEntidad(entidad), 'credenciales-cliente'));
-    }
-    const resultado = this.protegidos.get(entidad.clienteId)!.autenticar(String(secreto ?? ''));
-    if (!resultado.autenticado) throw new ErrorDeNegocio('Credenciales de cliente inválidas.', 401, 'invalid_client');
+    // El código es de un solo uso, vence en 5 minutos y solo sirve al servicio que lo pidió.
+    const guardado = this.codigos.get(String(codigo ?? ''));
+    this.codigos.delete(String(codigo ?? ''));
+    const valido = guardado && guardado.clienteId === servicio.clienteId && guardado.urlRetorno === urlRetorno && Date.now() - guardado.creadoEn < VIGENCIA_CODIGO_MS;
+    const usuario = valido ? this.usuarios.buscarPorId(guardado.usuarioId) : undefined;
+    if (!valido || !usuario) throw new ErrorDeNegocio('El código no es válido o ya venció.', 400, 'invalid_grant');
 
-    const credencial = this.director.construir(entidad.clienteId, entidad.nombre, entidad.rol, ['credenciales-cliente']);
+    // Builder: la credencial que recibe el servicio solo permite leer la identidad de la persona.
+    const builder = new CredencialDigitalBuilder()
+      .establecerUsuario(usuario.usuarioId, usuario.nombreCompleto)
+      .establecerRol(usuario.rol)
+      .agregarPermiso('consultar-identidad');
+    guardado.factores.forEach((factor) => builder.agregarFactorSuperado(factor));
+    const credencial = builder.obtenerCredencial();
+
     return {
-      access_token: this.tokens.emitir(credencial),
+      access_token: this.tokens.emitir(credencial, servicio.clienteId),
       token_type: 'Bearer',
       expires_in: Math.round((credencial.expiraEn - credencial.emitidaEn) / 1000),
-      scope: credencial.permisos.join(' '),
     };
   }
 
-  /** El token debe ser de una entidad que siga activa. */
-  entidadActiva(credencial: CredencialDigital): EntidadExterna {
-    const entidad = this.entidades.buscar(credencial.usuarioId);
-    if (!entidad || !entidad.activa) throw new ErrorDeNegocio('El token no es de una entidad activa.', 401, 'invalid_token');
-    return entidad;
-  }
+  /** Lo que el servicio recibe de la persona, leído a través del Proxy. */
+  datosDeUsuario(credencial: CredencialFirmada) {
+    const servicio = this.servicios.buscar(credencial.aud ?? '');
+    if (!servicio || !servicio.activo) throw new ErrorDeNegocio('El servicio fue desconectado.', 401, 'invalid_token');
 
-  validarIdentidad(credencial: CredencialDigital, solicitud: { tipoDocumento: string; numeroDocumento: string; nombreCompleto?: string }) {
-    const entidad = this.entidadActiva(credencial);
-    const tipoDocumento = String(solicitud.tipoDocumento ?? '').toUpperCase();
-    const numeroDocumento = String(solicitud.numeroDocumento ?? '').trim().toUpperCase();
-
-    // Flyweight: antes de buscar nada, el tipo de documento revisa el formato.
-    const tipo = obtenerTipoDocumento(tipoDocumento);
-    if (!new DocumentoIdentidad(tipo, numeroDocumento, '').esValido()) {
-      throw new ErrorDeNegocio(`El número no tiene el formato de ${tipo.nombre}.`, 400, 'documento_invalido');
+    let identidad;
+    try {
+      identidad = new RepositorioIdentidadProxy(this.identidades, credencial).obtener(credencial.usuarioId);
+    } catch (error) {
+      throw new ErrorDeNegocio((error as Error).message, 403, 'insufficient_scope');
     }
+    const usuario = this.usuarios.buscarPorId(credencial.usuarioId)!;
 
-    let valida = false;
-    let coincideNombre: boolean | null = null;
-    const usuarioId = this.usuarios.idPara(tipoDocumento, numeroDocumento);
-    if (this.usuarios.buscarPorId(usuarioId)) {
-      // Proxy (ETAPA 10): el mismo de siempre, con el permiso que exige la integración.
-      const protegido = new RepositorioIdentidadProxy(this.identidades, credencial, PERMISO_VALIDAR);
-      let identidad;
-      try {
-        identidad = protegido.obtener(usuarioId);
-      } catch (error) {
-        throw new ErrorDeNegocio((error as Error).message, 403, 'insufficient_scope');
-      }
-      valida = true;
-      if (solicitud.nombreCompleto) coincideNombre = normalizar(solicitud.nombreCompleto) === normalizar(identidad.nombreCompleto);
-    }
-
-    const registro = this.auditoria.registrar({
-      actor: actorEntidad(entidad),
-      accion: 'integracion.validar',
-      resultado: 'exito',
-      detalle: `${tipoDocumento} ${enmascarar(numeroDocumento)} → ${valida ? 'registrada' : 'no registrada'}`,
-    });
-    return { valida, coincideNombre, tipoDocumento, consultadoEn: registro.fecha, registroAuditoria: registro.numero };
+    this.auditoria.registrar({ actor: actorServicio(servicio), accion: 'servicios.datos', resultado: 'exito', detalle: `Leyó la identidad de ${actorDe(usuario)}` });
+    return {
+      sub: credencial.usuarioId,
+      nombreCompleto: identidad.nombreCompleto,
+      tipoDocumento: obtenerTipoDocumento(usuario.tipoDocumento).nombre, // Flyweight
+      numeroDocumento: identidad.documento,
+      factores: credencial.factoresSuperados,
+    };
   }
 }

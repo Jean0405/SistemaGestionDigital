@@ -34,7 +34,7 @@ export function reiniciarInicioSesion() {
 
 function pintarProgreso() {
   document.querySelectorAll('#progreso-factores li').forEach((li) => li.classList.toggle('hecho', superados.includes(li.dataset.factor)));
-  document.querySelectorAll('[data-tarjeta-factor]').forEach((t) => t.classList.toggle('tarjeta--superada', superados.includes(t.dataset.tarjetaFactor)));
+  document.querySelectorAll('[data-tarjeta-factor]').forEach((t) => t.classList.toggle('tarjeta--ok', superados.includes(t.dataset.tarjetaFactor)));
   botonCompletar.disabled = superados.length < estado.config.factoresRequeridos.length;
 }
 
@@ -95,7 +95,7 @@ export function iniciarInicioSesion({ alEntrar }) {
 
     pintar(
       document.getElementById('envios-sms'),
-      datos.envios.map((e) => h`<span class="chip ${e.enviado ? 'chip--ok' : 'chip--error'}">${e.proveedor}: ${e.enviado ? 'enviado' : 'falló'}</span>`),
+      datos.envios.map((e) => h`<span class="etiqueta ${e.enviado ? 'etiqueta--ok' : 'etiqueta--error'}">${e.proveedor}: ${e.enviado ? 'enviado' : 'falló'}</span>`),
     );
     mostrarEstado(tarjeta.querySelector('[data-estado]'), `Código enviado a ${datos.telefono}.`, true);
     await verBandeja();
@@ -111,7 +111,7 @@ export function iniciarInicioSesion({ alEntrar }) {
   tarjetaRostro.querySelector('[data-activar-camara]').addEventListener('click', async () => {
     const salida = tarjetaRostro.querySelector('[data-estado]');
     try {
-      mostrarEstado(salida, 'Cargando el modelo de reconocimiento facial…');
+      mostrarEstado(salida, 'Cargando…');
       await camara.activar();
       document.getElementById('btn-verificar-rostro').disabled = false;
       mostrarEstado(salida, 'Cámara activa.', true);
@@ -132,19 +132,16 @@ export function iniciarInicioSesion({ alEntrar }) {
     registrarResultado('rostro', tarjetaRostro, respuesta);
 
     if (respuesta.datos.puntaje !== undefined) {
-      const { puntaje, distancia } = respuesta.datos;
+      const { puntaje } = respuesta.datos;
       const umbral = estado.config.umbralFacial;
       pintar(
         document.getElementById('medidor-rostro'),
         h`<div class="medidor">
           <div class="medidor__barra"><div class="medidor__valor ${puntaje >= umbral ? 'medidor__valor--ok' : ''}" style="width:${Math.round(puntaje * 100)}%"></div>
             <div class="medidor__umbral" style="left:${Math.round(umbral * 100)}%" title="umbral"></div></div>
-          <small>Parecido ${puntaje.toFixed(3)} · umbral ${umbral} · distancia ${distancia.toFixed(3)} (0 = idéntico)</small>
+          <small>Parecido ${puntaje.toFixed(2)} · mínimo ${umbral}</small>
         </div>`,
       );
-      if (puntaje < umbral && puntaje > 0.3) {
-        mostrarEstado(salida, `${respuesta.datos.motivo} Con cámara real, un umbral de 0.5 suele funcionar (BIOMETRIA_UMBRAL en .env).`, false);
-      }
     }
   });
 

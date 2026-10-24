@@ -8,7 +8,7 @@ import { RepositorioIdentidadProxy } from '../../application/identidad/repositor
 import { ErrorDeNegocio, enmascarar, obtenerTipoDocumento } from '../../application/comun';
 import { DocumentoIdentidad } from '../../domain/documentos/documento-identidad';
 
-const PERMISOS_DEL_PANEL = ['gestionar-roles', 'gestionar-usuarios', 'gestionar-entidades', 'ver-auditoria', 'exportar-auditoria'];
+const PERMISOS_DEL_PANEL = ['gestionar-roles', 'gestionar-usuarios', 'gestionar-servicios', 'ver-auditoria', 'exportar-auditoria'];
 
 export function rutasSesion(sistema: Sistema): Router {
   const r = Router();
@@ -47,6 +47,18 @@ export function rutasSesion(sistema: Sistema): Router {
   r.get('/sesion/:id/sms/bandeja', (req, res) => {
     if (!sistema.smsSimulado) throw new ErrorDeNegocio('El teléfono simulado no existe en producción.', 404);
     res.json({ mensajes: sesiones.bandeja(req.params.id) });
+  });
+
+  // --- "Iniciar sesión con SGID": la persona llega desde un servicio del Estado ---
+  r.get('/autorizacion', (req, res) => {
+    const servicio = sistema.integracion.servicioPara(String(req.query.client_id), String(req.query.redirect_uri));
+    res.json({ servicio: servicio.nombre });
+  });
+
+  r.post('/autorizar', requiereToken(sistema), requiereUsuario(sistema), (req, res) => {
+    const { client_id, redirect_uri, state } = req.body;
+    const url = sistema.integracion.autorizar(client_id, redirect_uri, state, res.locals.usuario, res.locals.credencial.factoresSuperados);
+    res.json({ url });
   });
 
   // --- Con sesión iniciada ---

@@ -3,74 +3,74 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>SGID — Sistema de Gestión de Identidad Digital</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🛡️%3C/text%3E%3C/svg%3E" />
-  <link rel="stylesheet" href="styles.css" />
+  <title>SGID · Identidad digital</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231d4ed8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z'/%3E%3Cpath d='m9 12 2 2 4-4'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
-  <header class="encabezado">
-    <div class="encabezado__marca">
-      <span class="escudo" aria-hidden="true">🛡️</span>
-      <div>
-        <strong>SGID</strong>
-        <span>Sistema de Gestión de Identidad Digital</span>
-      </div>
+  <header class="barra">
+    <div class="barra__marca">
+      <i data-lucide="shield-check"></i>
+      <strong>SGID</strong>
+      <span>Identidad digital</span>
     </div>
-    <div id="sesion-actual" class="sesion-actual" hidden>
+    <div id="sesion-actual" class="barra__sesion" hidden>
+      <i data-lucide="user-round"></i>
       <span id="sesion-nombre"></span>
-      <span id="sesion-rol" class="chip chip--dorado"></span>
-      <button id="btn-cerrar-sesion" class="boton boton--fantasma">Cerrar sesión</button>
+      <span id="sesion-rol" class="etiqueta"></span>
+      <button id="btn-cerrar-sesion" class="boton boton--linea boton--chico"><i data-lucide="log-out"></i>Salir</button>
     </div>
   </header>
 
-  <nav class="pestanas" aria-label="Secciones">
-    <button class="pestana" data-ir="inicio">🔐 Iniciar sesión</button>
-    <button class="pestana" data-ir="registro">📝 Registro</button>
-    <button class="pestana" data-ir="perfil" hidden>🪪 Mi perfil</button>
-    <button class="pestana" data-ir="admin" hidden>⚙️ Administración</button>
-    <button class="pestana" data-ir="gobierno">🏛️ API gubernamental</button>
+  <nav class="pestanas">
+    <button class="pestana" data-ir="inicio"><i data-lucide="log-in"></i>Iniciar sesión</button>
+    <button class="pestana" data-ir="registro"><i data-lucide="user-plus"></i>Registro</button>
+    <button class="pestana" data-ir="perfil" hidden><i data-lucide="user-round"></i>Mi perfil</button>
+    <button class="pestana" data-ir="admin" hidden><i data-lucide="settings"></i>Administración</button>
   </nav>
 
-  <main class="contenedor">
-    <div id="aviso-configuracion" class="banda banda--dorada" hidden>
-      <strong>Primer arranque.</strong> Todavía no hay administrador: registra primero a la persona que
-      administrará el sistema. Ese registro queda guardado y desde su cuenta se gestionan roles y permisos.
+  <main class="contenido">
+    <div id="aviso-configuracion" class="aviso" hidden>
+      <i data-lucide="info"></i>
+      <span>Todavía no hay administrador. El primer registro queda como administrador del sistema.</span>
     </div>
 
-    <!-- ===================== INICIAR SESIÓN ===================== -->
+    <div id="aviso-autorizacion" class="aviso aviso--servicio" hidden>
+      <i data-lucide="landmark"></i>
+      <span><strong id="aviso-servicio"></strong> te pidió iniciar sesión con SGID.</span>
+    </div>
+
+    <!-- ============ Iniciar sesión ============ -->
     <section class="vista" data-vista="inicio">
       <div id="inicio-paso-1" class="tarjeta tarjeta--angosta">
-        <h2>¿Quién eres?</h2>
-        <p class="ayuda">Escribe tu documento. Luego tendrás que superar <strong>tres factores</strong>, en el orden que quieras:
-          algo que sabes (contraseña), algo que tienes (tu teléfono) y algo que eres (tu rostro).</p>
+        <h2>Iniciar sesión</h2>
         <form id="form-inicio" class="formulario">
           <div class="fila">
             <label>Tipo de documento<select name="tipoDocumento" class="tipos-documento"></select></label>
-            <label>Número<input name="numeroDocumento" required autocomplete="username" placeholder="1005184201" /></label>
+            <label>Número<input name="numeroDocumento" required autocomplete="username" /></label>
           </div>
-          <button class="boton">Continuar</button>
+          <button class="boton">Continuar<i data-lucide="arrow-right"></i></button>
           <div class="estado" data-estado></div>
         </form>
       </div>
 
-      <div id="inicio-paso-2" hidden>
-        <div class="tarjeta tarjeta--progreso">
+      <div id="inicio-paso-2" class="pila" hidden>
+        <div class="cabecera-paso">
           <div>
             <h2 id="inicio-saludo">Hola</h2>
-            <p class="ayuda">Supera los tres factores. Cada uno está protegido con bitácora, auditoría y bloqueo a los 3 fallos.</p>
+            <ol class="progreso" id="progreso-factores">
+              <li data-factor="contraseña"><i data-lucide="key-round"></i>Contraseña</li>
+              <li data-factor="token-telefono"><i data-lucide="smartphone"></i>Código</li>
+              <li data-factor="rostro"><i data-lucide="scan-face"></i>Rostro</li>
+            </ol>
           </div>
-          <ol class="progreso" id="progreso-factores">
-            <li data-factor="contraseña">🔑 Contraseña</li>
-            <li data-factor="token-telefono">📱 Código</li>
-            <li data-factor="rostro">🙂 Rostro</li>
-          </ol>
-          <button id="btn-otra-persona" class="boton boton--secundario">Cambiar de persona</button>
+          <button id="btn-otra-persona" class="boton boton--linea boton--chico">Cambiar de persona</button>
         </div>
 
-        <div class="rejilla-factores">
+        <div class="rejilla-3">
           <article class="tarjeta" data-tarjeta-factor="contraseña">
-            <h3>🔑 Contraseña <span class="patron">Factory Method</span><span class="patron">Decorator</span></h3>
-            <p class="ayuda">Se compara contra un <strong>hash scrypt</strong>; la contraseña nunca se guarda en claro.</p>
+            <h3><i data-lucide="key-round"></i>Contraseña</h3>
+            <div class="burbujas"><span class="patron">Factory Method</span><span class="patron">Decorator</span></div>
             <form id="form-contrasena" class="formulario">
               <input type="password" name="valor" required autocomplete="current-password" placeholder="Tu contraseña" />
               <button class="boton">Verificar</button>
@@ -80,12 +80,12 @@
           </article>
 
           <article class="tarjeta" data-tarjeta-factor="token-telefono">
-            <h3>📱 Código al teléfono <span class="patron">Adapter</span></h3>
-            <p class="ayuda">Código aleatorio de un solo uso, válido 5 minutos. Se envía por el primer proveedor de SMS que responda.</p>
-            <button id="btn-enviar-codigo" class="boton boton--secundario">Enviar código</button>
-            <div id="envios-sms" class="chips"></div>
+            <h3><i data-lucide="smartphone"></i>Código al teléfono</h3>
+            <div class="burbujas"><span class="patron">Adapter</span></div>
+            <button id="btn-enviar-codigo" class="boton boton--linea"><i data-lucide="send"></i>Enviar código</button>
+            <div id="envios-sms" class="burbujas"></div>
             <div id="telefono-simulado" class="telefono" hidden>
-              <div class="telefono__barra">📶 Teléfono simulado <span id="telefono-numero"></span></div>
+              <div class="telefono__barra"><span>Teléfono de prueba</span><span id="telefono-numero"></span></div>
               <div id="telefono-mensajes" class="telefono__mensajes"></div>
             </div>
             <form id="form-codigo" class="formulario">
@@ -96,190 +96,154 @@
           </article>
 
           <article class="tarjeta" data-tarjeta-factor="rostro">
-            <h3>🙂 Rostro <span class="patron">Factory Method</span><span class="patron">Singleton</span></h3>
-            <p class="ayuda">Se compara tu rostro con la plantilla cifrada del registro. Umbral (Singleton): <strong class="umbral-facial">…</strong></p>
+            <h3><i data-lucide="scan-face"></i>Rostro</h3>
+            <div class="burbujas"><span class="patron">Factory Method</span><span class="patron">Singleton</span></div>
             <video class="camara" autoplay muted playsinline></video>
             <div class="fila-botones">
-              <button class="boton boton--secundario" data-activar-camara>Activar cámara</button>
-              <button id="btn-verificar-rostro" class="boton" disabled>Verificar rostro</button>
+              <button class="boton boton--linea" data-activar-camara><i data-lucide="camera"></i>Activar cámara</button>
+              <button id="btn-verificar-rostro" class="boton" disabled>Verificar</button>
             </div>
             <div class="estado" data-estado></div>
             <div id="medidor-rostro"></div>
           </article>
         </div>
 
-        <div class="tarjeta tarjeta--entrar">
-          <div>
-            <h3>🚪 Entrar al sistema <span class="patron">Builder</span><span class="patron">Bridge</span></h3>
-            <p class="ayuda">Se arma tu credencial con los permisos de tu rol, se firma como JWT y se te avisa del inicio de sesión por SMS y correo.</p>
-          </div>
-          <button id="btn-completar" class="boton boton--grande" disabled>Entrar</button>
+        <div class="tarjeta tarjeta--fila">
+          <div class="burbujas"><span class="patron">Builder</span><span class="patron">Bridge</span></div>
+          <button id="btn-completar" class="boton" disabled><i data-lucide="log-in"></i>Entrar</button>
           <div class="estado" data-estado></div>
         </div>
       </div>
     </section>
 
-    <!-- ===================== REGISTRO ===================== -->
+    <!-- ============ Autorizar a un servicio ============ -->
+    <section class="vista" data-vista="autorizar">
+      <div class="tarjeta tarjeta--angosta">
+        <h2><i data-lucide="landmark"></i><span id="autorizar-servicio"></span></h2>
+        <div class="burbujas"><span class="patron">Builder</span><span class="patron">Proxy</span></div>
+        <p>Este servicio va a recibir:</p>
+        <ul class="lista-iconos">
+          <li><i data-lucide="user-round"></i>Tu nombre completo</li>
+          <li><i data-lucide="contact"></i>Tu tipo y número de documento</li>
+          <li><i data-lucide="fingerprint"></i>Los factores con los que te verificaste</li>
+        </ul>
+        <div class="fila-botones">
+          <button id="btn-permitir" class="boton"><i data-lucide="check"></i>Permitir y continuar</button>
+          <button id="btn-cancelar-autorizacion" class="boton boton--linea">Cancelar</button>
+        </div>
+        <div class="estado" data-estado></div>
+      </div>
+    </section>
+
+    <!-- ============ Registro ============ -->
     <section class="vista" data-vista="registro">
       <div class="tarjeta tarjeta--angosta">
-        <h2 id="registro-titulo">Registro de ciudadano</h2>
-        <p class="ayuda" id="registro-ayuda">Los nuevos registros entran con el rol <strong>ciudadano</strong>. Solo un administrador puede cambiarlo.</p>
+        <h2 id="registro-titulo">Crear cuenta</h2>
+        <div class="burbujas"><span class="patron">Flyweight</span></div>
         <form id="form-registro" class="formulario">
-          <label>Nombre completo<input name="nombreCompleto" required autocomplete="name" placeholder="Ana Pérez" /></label>
+          <label>Nombre completo<input name="nombreCompleto" required autocomplete="name" /></label>
           <div class="fila">
             <label>Tipo de documento<select name="tipoDocumento" class="tipos-documento"></select></label>
-            <label><span>Número <span class="ayuda-campo">(validado por el Flyweight)</span></span><input name="numeroDocumento" required placeholder="1005184201" /></label>
+            <label>Número<input name="numeroDocumento" required /></label>
           </div>
           <div class="fila">
-            <label>Teléfono<input name="telefono" required inputmode="tel" autocomplete="tel" placeholder="3001234567" /></label>
-            <label><span>Correo <span class="ayuda-campo">(opcional)</span></span><input name="correo" type="email" autocomplete="email" placeholder="ana@correo.gov.co" /></label>
+            <label>Teléfono<input name="telefono" required inputmode="tel" autocomplete="tel" /></label>
+            <label><span>Correo <small>(opcional)</small></span><input name="correo" type="email" autocomplete="email" /></label>
           </div>
           <div class="fila">
             <label>Contraseña<input name="contrasena" type="password" required minlength="8" autocomplete="new-password" placeholder="Mínimo 8, con letras y números" /></label>
             <label>Repite la contraseña<input name="confirmacion" type="password" required minlength="8" autocomplete="new-password" /></label>
           </div>
 
-          <fieldset class="captura-rostro">
+          <fieldset class="caja-rostro">
             <legend>Rostro</legend>
-            <p class="ayuda">Se guarda una huella matemática (128 números), cifrada con AES-256-GCM. No se guarda ninguna foto.
-              <strong>Requiere cámara e internet</strong> (face-api.js se descarga la primera vez).</p>
             <video class="camara" autoplay muted playsinline></video>
             <div class="fila-botones">
-              <button type="button" class="boton boton--secundario" data-activar-camara>Activar cámara</button>
-              <button type="button" id="btn-capturar-rostro" class="boton boton--secundario" disabled>Capturar rostro</button>
+              <button type="button" class="boton boton--linea" data-activar-camara><i data-lucide="camera"></i>Activar cámara</button>
+              <button type="button" id="btn-capturar-rostro" class="boton boton--linea" disabled>Capturar</button>
             </div>
             <div class="estado" id="estado-captura"></div>
           </fieldset>
 
-          <button class="boton boton--grande">Registrarme</button>
+          <button class="boton">Crear cuenta</button>
           <div class="estado" data-estado></div>
         </form>
       </div>
     </section>
 
-    <!-- ===================== PERFIL ===================== -->
+    <!-- ============ Perfil ============ -->
     <section class="vista" data-vista="perfil">
       <div id="perfil-contenido" class="rejilla-perfil"></div>
     </section>
 
-    <!-- ===================== ADMINISTRACIÓN ===================== -->
+    <!-- ============ Administración ============ -->
     <section class="vista" data-vista="admin">
       <nav class="subpestanas" id="admin-pestanas">
-        <button class="subpestana" data-admin="roles" data-permiso="gestionar-roles">Roles y permisos</button>
-        <button class="subpestana" data-admin="usuarios" data-permiso="gestionar-usuarios">Usuarios</button>
-        <button class="subpestana" data-admin="entidades" data-permiso="gestionar-entidades">Entidades externas</button>
-        <button class="subpestana" data-admin="auditoria" data-permiso="ver-auditoria">Auditoría</button>
+        <button class="subpestana" data-admin="roles" data-permiso="gestionar-roles"><i data-lucide="shield"></i>Roles y permisos</button>
+        <button class="subpestana" data-admin="usuarios" data-permiso="gestionar-usuarios"><i data-lucide="users"></i>Usuarios</button>
+        <button class="subpestana" data-admin="servicios" data-permiso="gestionar-servicios"><i data-lucide="plug"></i>Servicios conectados</button>
+        <button class="subpestana" data-admin="auditoria" data-permiso="ver-auditoria"><i data-lucide="scroll-text"></i>Auditoría</button>
       </nav>
 
-      <div class="panel-admin" data-panel="roles">
+      <div class="panel" data-panel="roles">
         <div class="rejilla-roles">
           <div class="tarjeta">
             <div class="cabecera-tarjeta">
-              <h3>Roles <span class="patron">Composite</span></h3>
-              <button id="btn-nuevo-rol" class="boton boton--secundario">+ Nuevo rol</button>
+              <h3>Roles</h3>
+              <button id="btn-nuevo-rol" class="boton boton--linea boton--chico"><i data-lucide="plus"></i>Nuevo</button>
             </div>
-            <p class="ayuda">Cada rol es un árbol: grupos completos de permisos y permisos sueltos, tratados igual.</p>
+            <div class="burbujas"><span class="patron">Composite</span></div>
             <ul id="lista-roles" class="lista-roles"></ul>
           </div>
           <div class="tarjeta" id="editor-rol"></div>
         </div>
       </div>
 
-      <div class="panel-admin" data-panel="usuarios">
+      <div class="panel" data-panel="usuarios">
         <div class="tarjeta">
-          <h3>Usuarios registrados</h3>
-          <p class="ayuda">Los datos sensibles se ven enmascarados. Quitar permisos aplica de inmediato, incluso a sesiones abiertas;
-            los permisos nuevos llegan cuando la persona vuelve a iniciar sesión. "Desbloquear" reinicia el límite de intentos (Decorator).</p>
-          <div class="tabla-desplazable"><table class="tabla" id="tabla-usuarios"></table></div>
+          <h3>Usuarios</h3>
+          <div class="burbujas"><span class="patron">Decorator</span></div>
+          <div class="tabla-scroll"><table class="tabla" id="tabla-usuarios"></table></div>
         </div>
       </div>
 
-      <div class="panel-admin" data-panel="entidades">
+      <div class="panel" data-panel="servicios">
         <div class="tarjeta">
-          <h3>Registrar entidad gubernamental</h3>
-          <p class="ayuda">La entidad recibe un <code>client_id</code> y un <code>client_secret</code> para consumir la API.
-            El secreto se muestra <strong>una sola vez</strong>; el sistema solo guarda su hash.</p>
-          <form id="form-entidad" class="formulario formulario--linea">
-            <input name="nombre" required placeholder="Ej.: Hospital Universitario del Valle" />
-            <select name="rol" id="entidad-rol"></select>
-            <button class="boton">Registrar</button>
+          <h3>Conectar un servicio</h3>
+          <form id="form-servicio" class="formulario formulario--linea">
+            <input name="nombre" required placeholder="Nombre del servicio, ej.: Alcaldía de Villa Esperanza" />
+            <input name="urlRetorno" id="servicio-url" required placeholder="URL de retorno" />
+            <button class="boton"><i data-lucide="plug"></i>Conectar</button>
           </form>
           <div class="estado" data-estado></div>
-          <div id="secreto-entidad"></div>
+          <div id="credenciales-servicio"></div>
         </div>
         <div class="tarjeta">
-          <h3>Entidades registradas</h3>
-          <div class="tabla-desplazable"><table class="tabla" id="tabla-entidades"></table></div>
+          <h3>Servicios que usan SGID</h3>
+          <div class="tabla-scroll"><table class="tabla" id="tabla-servicios"></table></div>
         </div>
       </div>
 
-      <div class="panel-admin" data-panel="auditoria">
+      <div class="panel" data-panel="auditoria">
         <div class="tarjeta">
           <div class="cabecera-tarjeta">
-            <h3>Bitácora de auditoría</h3>
+            <h3>Auditoría</h3>
             <div class="fila-botones">
-              <button id="btn-refrescar-auditoria" class="boton boton--secundario">Actualizar</button>
-              <button id="btn-exportar-auditoria" class="boton boton--secundario" data-permiso="exportar-auditoria">Exportar</button>
+              <button id="btn-refrescar-auditoria" class="boton boton--linea boton--chico"><i data-lucide="refresh-cw"></i>Actualizar</button>
+              <button id="btn-exportar-auditoria" class="boton boton--linea boton--chico"><i data-lucide="download"></i>Exportar</button>
             </div>
           </div>
-          <p class="ayuda">Cada registro guarda el hash SHA-256 del anterior. Si alguien edita o borra una línea del archivo
-            <code>data/auditoria.jsonl</code>, la cadena se rompe y se ve aquí.</p>
           <div id="integridad-auditoria"></div>
-          <div class="tabla-desplazable tabla-desplazable--alta"><table class="tabla tabla--compacta" id="tabla-auditoria"></table></div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ===================== API GUBERNAMENTAL ===================== -->
-    <section class="vista" data-vista="gobierno">
-      <div class="tarjeta">
-        <h2>Integración con servicios gubernamentales</h2>
-        <p class="ayuda">Así se ve el sistema desde <strong>otra entidad del Estado</strong> (un hospital, una notaría, una alcaldía).
-          No necesita implementar su propia autenticación: le pregunta al SGID si un documento corresponde a una persona registrada.
-          La respuesta es mínima: <em>sí o no</em>, sin entregar datos personales.</p>
-        <ol class="pasos-api">
-          <li>El administrador registra la entidad y le entrega <code>client_id</code> + <code>client_secret</code>.</li>
-          <li>La entidad pide un token: <code>POST /api/gov/v1/oauth/token</code> (OAuth2 client credentials).</li>
-          <li>Con el token consulta: <code>POST /api/gov/v1/identidades/validar</code>. El <strong>Proxy</strong> exige el permiso
-            <code>validar-identidad-externa</code> y el <strong>Flyweight</strong> valida el formato del documento.</li>
-        </ol>
-      </div>
-
-      <div class="rejilla-api">
-        <div class="tarjeta">
-          <h3>Paso 1 · Obtener token <span class="patron">Factory Method</span><span class="patron">Decorator</span></h3>
-          <form id="form-gov-token" class="formulario">
-            <label>client_id<input name="client_id" required placeholder="gov-…" /></label>
-            <label>client_secret<input name="client_secret" required type="password" /></label>
-            <button class="boton">Solicitar token</button>
-          </form>
-          <div id="gov-token-resultado"></div>
-        </div>
-
-        <div class="tarjeta">
-          <h3>Paso 2 · Validar identidad <span class="patron">Proxy</span><span class="patron">Flyweight</span></h3>
-          <form id="form-gov-validar" class="formulario">
-            <label>access_token<input name="token" required placeholder="Se llena solo al obtener el token" /></label>
-            <div class="fila">
-              <label>Tipo<select name="tipoDocumento" class="tipos-documento"></select></label>
-              <label>Número<input name="numeroDocumento" required /></label>
-            </div>
-            <label><span>Nombre a confirmar <span class="ayuda-campo">(opcional)</span></span><input name="nombreCompleto" /></label>
-            <button class="boton">Validar</button>
-          </form>
-          <div id="gov-validar-resultado"></div>
+          <div class="tabla-scroll tabla-scroll--alta"><table class="tabla tabla--compacta" id="tabla-auditoria"></table></div>
         </div>
       </div>
     </section>
   </main>
 
-  <footer class="pie">
-    Proyecto académico SGID · Singleton · Factory Method · Builder · Adapter · Bridge · Composite · Decorator · Flyweight · Proxy
-  </footer>
-
   <div id="notificacion" class="notificacion" role="status" hidden></div>
 
+  <script defer src="https://cdn.jsdelivr.net/npm/lucide@0.344.0/dist/umd/lucide.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
-  <script type="module" src="js/app.js"></script>
+  <script type="module" src="/js/app.js"></script>
 </body>
 </html>

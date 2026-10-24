@@ -1,4 +1,4 @@
-/** Panel de administración: roles y permisos, usuarios, entidades externas y auditoría. */
+/** Panel de administración: roles y permisos, usuarios, servicios conectados y auditoría. */
 import { Router } from 'express';
 import { Sistema } from '../app';
 import { requierePermiso, requiereToken, requiereUsuario } from '../seguridad-http';
@@ -8,7 +8,7 @@ export function rutasAdmin(sistema: Sistema): Router {
   const r = Router();
   const { roles, usuarios, sesiones, integracion, auditoria } = sistema;
   const permiso = (nombre: string) => requierePermiso(sistema, nombre);
-  const cuentasConRol = (rol: string) => usuarios.contarConRol(rol) + integracion.contarConRol(rol);
+  const cuentasConRol = (rol: string) => usuarios.contarConRol(rol);
 
   r.use(requiereToken(sistema), requiereUsuario(sistema));
 
@@ -45,17 +45,17 @@ export function rutasAdmin(sistema: Sistema): Router {
     res.json({ ok: true });
   });
 
-  // --- Entidades gubernamentales externas ---
-  r.get('/entidades', permiso('gestionar-entidades'), (_req, res) => {
+  // --- Servicios del Estado conectados a SGID ---
+  r.get('/servicios', permiso('gestionar-servicios'), (_req, res) => {
     res.json(integracion.listar());
   });
 
-  r.post('/entidades', permiso('gestionar-entidades'), (req, res) => {
-    res.status(201).json(integracion.registrar(req.body.nombre, req.body.rol ?? 'entidad-externa', res.locals.usuario));
+  r.post('/servicios', permiso('gestionar-servicios'), (req, res) => {
+    res.status(201).json(integracion.conectar(req.body.nombre, req.body.urlRetorno, res.locals.usuario));
   });
 
-  r.delete('/entidades/:id', permiso('gestionar-entidades'), (req, res) => {
-    integracion.revocar(req.params.id, res.locals.usuario);
+  r.delete('/servicios/:id', permiso('gestionar-servicios'), (req, res) => {
+    integracion.desconectar(req.params.id, res.locals.usuario);
     res.json({ ok: true });
   });
 

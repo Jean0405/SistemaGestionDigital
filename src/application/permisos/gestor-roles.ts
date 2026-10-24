@@ -31,13 +31,7 @@ export const catalogoDePermisos: Record<string, { descripcion: string; permisos:
     permisos: {
       'gestionar-roles': 'Crear y editar roles y sus permisos',
       'gestionar-usuarios': 'Cambiar el rol de los usuarios y desbloquearlos',
-      'gestionar-entidades': 'Registrar y revocar entidades externas',
-    },
-  },
-  integracion: {
-    descripcion: 'API para otras entidades del Estado',
-    permisos: {
-      'validar-identidad-externa': 'Validar si un documento corresponde a una persona registrada',
+      'gestionar-servicios': 'Conectar y desconectar servicios del Estado',
     },
   },
 };
@@ -45,8 +39,7 @@ export const catalogoDePermisos: Record<string, { descripcion: string; permisos:
 /** Roles con los que arranca el sistema la primera vez. */
 const rolesBase: Rol[] = [
   { nombre: 'ciudadano', descripcion: 'Persona que se autentica y consulta su propia identidad', componentes: ['consultar-identidad'], base: true },
-  { nombre: 'administrador', descripcion: 'Configura roles, usuarios y entidades, y supervisa la auditoría', componentes: ['identidad', 'auditoria', 'administracion'], base: true },
-  { nombre: 'entidad-externa', descripcion: 'Sistema de otra entidad del Estado que valida identidades por la API', componentes: ['integracion'], base: true },
+  { nombre: 'administrador', descripcion: 'Configura roles, usuarios y servicios conectados, y supervisa la auditoría', componentes: ['identidad', 'auditoria', 'administracion'], base: true },
 ];
 
 const esGrupo = (nombre: string) => nombre in catalogoDePermisos;

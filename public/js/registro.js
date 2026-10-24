@@ -12,19 +12,16 @@ let descriptor = null;
 /** Cambia títulos y destino del formulario según si ya existe un administrador. */
 export function actualizarModoRegistro() {
   const inicial = !estado.config.hayAdministrador;
-  document.getElementById('registro-titulo').textContent = inicial ? 'Configuración inicial: registro del administrador' : 'Registro de ciudadano';
-  document.getElementById('registro-ayuda').innerHTML = inicial
-    ? 'Esta persona quedará guardada con el rol <strong>administrador</strong> y podrá gestionar roles, permisos, usuarios y entidades.'
-    : 'Los nuevos registros entran con el rol <strong>ciudadano</strong>. Solo un administrador puede cambiarlo.';
+  document.getElementById('registro-titulo').textContent = inicial ? 'Crear cuenta de administrador' : 'Crear cuenta';
 }
 
 export function iniciarRegistro({ alRegistrar }) {
   formulario.querySelector('[data-activar-camara]').addEventListener('click', async () => {
     try {
-      mostrarEstado(estadoCaptura, 'Cargando el modelo de reconocimiento facial…');
+      mostrarEstado(estadoCaptura, 'Cargando…');
       await camara.activar();
       botonCapturar.disabled = false;
-      mostrarEstado(estadoCaptura, 'Cámara activa. Mira de frente y presiona "Capturar rostro".', true);
+      mostrarEstado(estadoCaptura, 'Cámara activa.', true);
     } catch (error) {
       mostrarEstado(estadoCaptura, 'No se pudo activar la cámara: ' + error.message, false);
     }
@@ -33,7 +30,7 @@ export function iniciarRegistro({ alRegistrar }) {
   botonCapturar.addEventListener('click', async () => {
     try {
       descriptor = await camara.capturar();
-      mostrarEstado(estadoCaptura, '✅ Rostro capturado (128 valores). Se enviará cifrado al registrarte.', true);
+      mostrarEstado(estadoCaptura, 'Rostro capturado.', true);
     } catch (error) {
       mostrarEstado(estadoCaptura, error.message, false);
     }

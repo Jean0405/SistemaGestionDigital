@@ -17,8 +17,12 @@ export function encabezadosSeguridad(req: Request, res: Response, next: NextFunc
   next();
 }
 
-/** Exige `Authorization: Bearer <token>` válido y deja la credencial en `res.locals.credencial`. */
-export function requiereToken(sistema: Sistema) {
+/**
+ * Exige `Authorization: Bearer <token>` válido y deja la credencial en `res.locals.credencial`.
+ * Un token entregado a un servicio conectado (con `aud`) solo sirve en la API de servicios,
+ * y uno de sesión de SGID solo sirve dentro de SGID.
+ */
+export function requiereToken(sistema: Sistema, paraServicio = false) {
   return (req: Request, res: Response, next: NextFunction) => {
     const [esquema, token] = (req.headers.authorization ?? '').split(' ');
     if (esquema !== 'Bearer' || !token) throw new ErrorDeNegocio('Falta el token de acceso.', 401, 'invalid_token');
@@ -27,6 +31,9 @@ export function requiereToken(sistema: Sistema) {
       res.locals.token = token;
     } catch (error) {
       throw new ErrorDeNegocio((error as Error).message, 401, 'invalid_token');
+    }
+    if (Boolean(res.locals.credencial.aud) !== paraServicio) {
+      throw new ErrorDeNegocio('Este token no sirve para esta ruta.', 401, 'invalid_token');
     }
     next();
   };
@@ -39,14 +46,6 @@ export function requiereUsuario(sistema: Sistema) {
     if (!usuario) throw new ErrorDeNegocio('El token no es de una persona registrada.', 401, 'invalid_token');
     res.locals.usuario = usuario;
     res.locals.rolActual = usuario.rol;
-    next();
-  };
-}
-
-/** El token debe ser de una entidad externa activa. Su rol actual queda en `res.locals.rolActual`. */
-export function requiereEntidad(sistema: Sistema) {
-  return (_req: Request, res: Response, next: NextFunction) => {
-    res.locals.rolActual = sistema.integracion.entidadActiva(res.locals.credencial).rol;
     next();
   };
 }
@@ -69,7 +68,7 @@ export function requierePermiso(sistema: Sistema, permiso: string) {
 /** Traduce los errores a JSON. Los inesperados responden 500 sin dar detalles internos. */
 export function manejarErrores(error: Error, req: Request, res: Response, _next: NextFunction): void {
   if (error instanceof ErrorDeNegocio) {
-    // La API de integración usa la forma de error de OAuth2, que es la que esperan otros sistemas.
+    // La API de servicios usa la forma de error de OAuth2, que es la que esperan otros sistemas.
     const cuerpo = req.path.startsWith('/api/gov/')
       ? { error: error.codigo, error_description: error.message }
       : { error: error.message };

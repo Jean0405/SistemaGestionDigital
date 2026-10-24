@@ -12,13 +12,14 @@ export interface Usuario {
   creadoEn: number;
 }
 
-/** Sistema de otra entidad del Estado autorizado a usar la API de integración. */
-export interface EntidadExterna {
+/** Servicio del Estado que usa SGID como su forma de iniciar sesión ("Iniciar sesión con SGID"). */
+export interface ServicioConectado {
   clienteId: string;
   nombre: string;
-  rol: string;
+  /** A dónde SGID devuelve a la persona después de autenticarse. */
+  urlRetorno: string;
   /** Solo se guarda el hash; el secreto en claro se muestra una única vez. */
   secretoHash: string;
-  activa: boolean;
-  creadaEn: number;
+  activo: boolean;
+  creadoEn: number;
 }

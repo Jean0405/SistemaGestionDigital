@@ -10,7 +10,7 @@ npm run web              # abre http://localhost:3000
 
 ## Descripción general
 
-Este proyecto corresponde al desarrollo de un sistema backend enfocado en el sector gobierno, cuyo propósito central es unificar la manera en que los ciudadanos acreditan su identidad frente a distintas entidades del Estado. En lugar de que cada dependencia gubernamental maneje su propio esquema de autenticación, el sistema plantea un componente único capaz de validar identidad mediante biometría multifactor, administrar roles y permisos, y exponer esa información de forma controlada a otros servicios públicos que la requieran.
+Este proyecto corresponde al desarrollo de un sistema backend enfocado en el sector gobierno, cuyo propósito central es unificar la manera en que los ciudadanos acreditan su identidad frente a distintas entidades del Estado. En lugar de que cada dependencia gubernamental maneje su propio esquema de autenticación, SGID es el único lugar donde el ciudadano inicia sesión: verifica su identidad con biometría multifactor y los servicios del Estado lo integran como su método de autenticación ("Iniciar sesión con SGID"), igual que muchos sitios usan "Iniciar sesión con Google".
 
 ## Justificación
 
@@ -21,22 +21,22 @@ La motivación de este trabajo surge de un problema bastante recurrente en la ad
 - Poca capacidad de auditoría sobre quién accedió a qué información y en qué momento.
 - Baja interoperabilidad entre las entidades del Estado, que terminan trabajando de forma aislada.
 
-Frente a este panorama, se propone construir un sistema que centralice la verificación de identidad y que pueda ser consumido por otros sistemas gubernamentales mediante integraciones definidas, reduciendo así la duplicidad de esfuerzos y elevando el nivel de seguridad general.
+Frente a este panorama, se propone construir un sistema que centralice la verificación de identidad y que todos los servicios del Estado usen como su forma de iniciar sesión, reduciendo así la duplicidad de esfuerzos y elevando el nivel de seguridad general.
 
 ## Objetivos del proyecto
 
 - Implementar un mecanismo de autenticación biométrico que incorpore un segundo factor de verificación.
 - Definir un esquema de roles y permisos que permita diferenciar el nivel de acceso según el tipo de usuario o entidad.
-- Habilitar puntos de integración para que servicios gubernamentales externos puedan validar identidades a través del sistema.
+- Permitir que los servicios del Estado se conecten a SGID y lo usen como su método de inicio de sesión.
 - Ajustar el manejo de la información sensible a criterios de seguridad exigidos a nivel estatal.
 
 ## Funcionalidades contempladas
 
 **Autenticación biométrica multifactor.** El acceso no depende únicamente de una contraseña, sino que se combina con verificación biométrica para reducir el riesgo de accesos no autorizados.
 
-**Gestión de permisos y roles.** Se maneja un modelo de control de acceso basado en roles (RBAC), donde ciudadanos, administradores y entidades externas cuentan con distintos niveles de visibilidad y acción dentro del sistema.
+**Gestión de permisos y roles.** Se maneja un modelo de control de acceso basado en roles (RBAC), donde ciudadanos y administradores cuentan con distintos niveles de visibilidad y acción dentro del sistema.
 
-**Integración con servicios gubernamentales.** El sistema expone una API pensada para que otras plataformas del Estado puedan consultar y validar identidades sin necesidad de reimplementar su propio mecanismo de autenticación.
+**Integración con servicios gubernamentales.** Los servicios del Estado se conectan a SGID y ofrecen "Iniciar sesión con SGID": mandan al ciudadano a SGID, este se autentica una vez y el servicio recibe su identidad verificada, sin implementar su propia autenticación.
 
 **Cumplimiento de estándares de seguridad.** Se contempla cifrado de la información, registro de auditoría y trazabilidad de las operaciones que involucren datos sensibles del ciudadano.
 
@@ -46,7 +46,7 @@ Frente a este panorama, se propone construir un sistema que centralice la verifi
 |---|---|
 | Ciudadano | Persona que se autentica y cuya identidad es gestionada por el sistema |
 | Administrador | Encargado de configurar roles, permisos y supervisar el funcionamiento general |
-| Entidad gubernamental externa | Sistema que consume la identidad verificada a través de la API |
+| Servicio del Estado conectado | Portal o trámite (alcaldía, hospital, notaría) que usa SGID para iniciar sesión |
 
 ## Enfoque arquitectónico
 
@@ -68,7 +68,7 @@ src/
 - Persistencia: archivos JSON en `data/`, con los datos sensibles cifrados (la arquitectura hexagonal
   permite cambiarlo por PostgreSQL escribiendo otro adaptador de los mismos puertos)
 - Autenticación: tres factores (contraseña, código SMS, rostro con [face-api.js](https://github.com/justadudewhohacks/face-api.js)),
-  credencial como JWT firmado (HS256) y OAuth2 *client credentials* para las entidades externas
+  credencial como JWT firmado (HS256) y OAuth2 *authorization code* para los servicios conectados
 - Criptografía: módulo `crypto` nativo de Node (scrypt, AES-256-GCM, HMAC-SHA256, SHA-256), sin dependencias extra
 - Pruebas: Jest
 
@@ -89,7 +89,7 @@ Más allá de las funcionalidades propias del sistema, se tuvieron en cuenta cie
 | 8 | Decorator | Bitácora y límite de intentos sobre la autenticación | `application/auth` |
 | 9 | Flyweight | Compartir los tipos de documento entre muchos ciudadanos | `domain/documentos` |
 | 10 | Proxy | Acceso protegido a los datos de identidad | `application/identidad` |
-| 11 | *(los mismos, extendidos)* | Integración gubernamental, seguridad y panel de administración | `application/integracion`, `web/` |
+| 11 | *(los mismos, extendidos)* | Iniciar sesión con SGID para los servicios del Estado, seguridad y panel de administración | `application/integracion`, `web/` |
 
 ## Cómo ejecutar la demo completa
 
@@ -98,7 +98,7 @@ npm install          # instalar dependencias
 npm test             # correr las 42 pruebas
 npm start            # compilar y ejecutar la demostración de las 10 etapas, de punta a punta
 npm run web          # levantar la interfaz web en http://localhost:3000, para probar en vivo
-npm run datos:borrar # borrar usuarios, roles, entidades y auditoría (volver al primer arranque)
+npm run datos:borrar # borrar usuarios, roles, servicios y auditoría (volver al primer arranque)
 ```
 
 `npm start` recorre, en orden, las diez etapas con datos fijos: arranca la
@@ -142,11 +142,11 @@ que el administrador y sus roles siguen ahí después de reiniciar el servidor.
 | 2 | Iniciar sesión | El administrador supera los 3 factores en cualquier orden. El código llega a un **teléfono simulado** en pantalla. 3 fallos bloquean el factor. | Factory Method, Decorator, Adapter, Singleton (umbral) |
 | 3 | Mi perfil | Credencial emitida, token JWT decodificado, identidad descifrada, árbol de permisos del rol y aviso de inicio de sesión por SMS y correo. | Builder, Proxy, Composite, Bridge |
 | 4 | Administración → Roles y permisos | Crear un rol (p. ej. `auditor`) marcando un **grupo completo** y un permiso suelto; se ven los permisos efectivos. | Composite |
-| 5 | Administración → Entidades externas | Registrar "Hospital X": aparece su `client_id` y `client_secret` (una sola vez) y el botón "Probar en API gubernamental". | Factory Method (secreto con hash) |
-| 6 | API gubernamental | La entidad pide su token (OAuth2) y valida un documento: responde solo **sí/no**, sin datos personales. Se ve la petición y la respuesta HTTP. | Proxy, Flyweight, Builder |
-| 7 | Roles y permisos | Quitarle `integracion` al rol `entidad-externa` y repetir el paso 6 con **el mismo token**: ahora es `403`. | Composite + Proxy |
+| 5 | Administración → Servicios conectados | Conectar "Alcaldía de Villa Esperanza": aparece su `client_id` y `client_secret` (una sola vez) y el botón "Abrir servicio de prueba". | — |
+| 6 | Servicio de prueba (alcaldía) | La alcaldía no tiene usuarios propios: botón **"Iniciar sesión con SGID"** → SGID pide el consentimiento → la persona vuelve a la alcaldía con su identidad verificada. | Builder, Proxy, Decorator, Flyweight |
+| 7 | Servicios conectados | Desconectar la alcaldía: ya no puede usar SGID ni leer datos con el token que tenía. | — |
 | 8 | Registro / Usuarios | Registrar a otra persona (entra como ciudadano) y cambiarle el rol desde el panel. "Desbloquear" reinicia el límite de intentos. | Decorator |
-| 9 | Auditoría | Todo quedó registrado y la cadena de hashes está íntegra. Si se edita a mano `data/auditoria.jsonl`, la pantalla muestra en qué registro se rompió. | — |
+| 9 | Auditoría | Todo quedó registrado, incluido cada inicio de sesión en un servicio, y la cadena de hashes está íntegra. Si se edita a mano `data/auditoria.jsonl`, la pantalla muestra en qué registro se rompió. | — |
 
 Para mostrar el cifrado, abre `data/usuarios.json`: el documento, el
 teléfono, el correo y el rostro se ven como texto cifrado y la
@@ -1553,9 +1553,10 @@ más, un sujeto real más).
 
 ## En una frase
 
-Las personas se registran y entran con sus tres factores; el administrador
-gestiona roles, permisos, usuarios y entidades desde un panel; otras
-entidades del Estado validan identidades por una API con OAuth2; y todo queda
+SGID es el lugar donde el ciudadano inicia sesión: se registra una vez, se
+autentica con tres factores y los servicios del Estado lo usan como su método
+de autenticación ("Iniciar sesión con SGID"). El administrador gestiona roles,
+permisos, usuarios y servicios conectados desde un panel, y todo queda
 cifrado, firmado y auditado.
 
 ## Cómo se reutilizan los patrones
@@ -1563,14 +1564,14 @@ cifrado, firmado y auditado.
 | Patrón | Pieza nueva | Cómo se usó, sin tocar la clase original |
 |---|---|---|
 | Singleton | `ConfigManager` | Suma dos valores: `DATOS_CLAVE` (cifrado) y `SGID_DATOS_DIR`. El `JWT_SECRET` que ya tenía ahora firma los tokens. |
-| Factory Method | `FlujoContrasenaSegura` + `FactorContrasenaSegura` | Un **creador nuevo** que compara contra un hash. Sirve para la contraseña de las personas y para el secreto de las entidades. `FlujoAutenticacion` no se tocó (principio abierto/cerrado). |
-| Builder | `DirectorCredencialesPorRol` | Un **director nuevo** cuyas recetas salen del árbol de permisos que edita el administrador. El builder es el mismo. |
+| Factory Method | `FlujoContrasenaSegura` + `FactorContrasenaSegura` | Un **creador nuevo** que compara contra un hash. Sirve para la contraseña de las personas y para el secreto de cada servicio conectado. `FlujoAutenticacion` no se tocó (principio abierto/cerrado). |
+| Builder | `DirectorCredencialesPorRol`, `ServicioIntegracion.canjearCodigo()` | Un **director nuevo** cuyas recetas salen del árbol de permisos. Para un servicio conectado, el builder arma una credencial que solo permite leer la identidad. |
 | Adapter | `ServicioInicioSesion` | El código SMS se envía por el primer proveedor que responda (`AdaptadorSmsGlobal`, si falla `AdaptadorSmsLocal`). |
 | Bridge | `ServicioInicioSesion` | Al entrar se avisa con `NotificacionUrgente` por SMS y `NotificacionSimple` por correo. |
 | Composite | `GestorRoles` | Cada rol se arma como un árbol de `GrupoPermisos` y `PermisoSimple`; `contiene()` decide los accesos y `listar()` da los permisos del token. |
 | Decorator | `AutenticadorConAuditoria` | Un **decorador nuevo** que escribe en la bitácora permanente. Se apila con los existentes: `Bitacora(Auditoria(LimiteIntentos(flujo)))`. |
-| Flyweight | `ServicioUsuarios`, `ServicioIntegracion` | `FabricaTiposDocumento` valida el documento al registrarse y en cada consulta de la API. |
-| Proxy | `ServicioIntegracion`, `/api/perfil` | El mismo `RepositorioIdentidadProxy`, con el permiso `validar-identidad-externa` para la API (ya era configurable por constructor). `RepositorioUsuariosArchivo` es un sujeto real nuevo. |
+| Flyweight | `ServicioUsuarios`, `ServicioIntegracion` | `FabricaTiposDocumento` valida el documento al registrarse y da el nombre del tipo que recibe el servicio. |
+| Proxy | `ServicioIntegracion.datosDeUsuario()`, `/api/perfil` | El mismo `RepositorioIdentidadProxy`: el servicio solo lee la identidad si su token trae `consultar-identidad`. `RepositorioUsuariosArchivo` es un sujeto real nuevo. |
 
 ## Requisito 1 — Autenticación biométrica multifactor
 
@@ -1587,11 +1588,11 @@ cifrado, firmado y auditado.
   administrador.
 - **Panel de administración** con cuatro secciones, cada una protegida por su
   propio permiso: roles y permisos (`gestionar-roles`), usuarios
-  (`gestionar-usuarios`), entidades (`gestionar-entidades`) y auditoría
-  (`ver-auditoria`, `exportar-auditoria`).
+  (`gestionar-usuarios`), servicios conectados (`gestionar-servicios`) y
+  auditoría (`ver-auditoria`, `exportar-auditoria`).
 - Catálogo fijo de permisos en grupos (`identidad`, `auditoria`,
-  `administracion`, `integracion`); el administrador arma roles nuevos con
-  grupos completos o permisos sueltos.
+  `administracion`); el administrador arma roles nuevos con grupos completos o
+  permisos sueltos.
 - **Revocación inmediata:** cada petición revisa el permiso en el token *y*
   en el rol que la persona tiene en ese momento. Quitar un permiso o bajar
   un rol corta el acceso aunque el token siga vigente.
@@ -1600,53 +1601,62 @@ cifrado, firmado y auditado.
 
 ## Requisito 3 — Integración con servicios gubernamentales
 
-API versionada en `/api/gov/v1`, pensada para que otra entidad no tenga que
-implementar su propia autenticación:
+Los servicios del Estado **no tienen usuarios propios**: se conectan a SGID y
+le delegan el inicio de sesión. Es el flujo estándar de OAuth2 *authorization
+code*, el mismo que usa "Iniciar sesión con Google":
+
+1. El administrador conecta el servicio (nombre y URL de retorno) y le entrega
+   su `client_id` y `client_secret`.
+2. El servicio manda a la persona a `GET /autorizar?client_id=…&redirect_uri=…&state=…`.
+3. La persona inicia sesión en SGID con sus tres factores y acepta compartir
+   sus datos con ese servicio.
+4. SGID la devuelve a la URL de retorno con un **código de un solo uso**
+   (vence en 5 minutos).
+5. El servidor del servicio canjea el código por un token y lee la identidad.
 
 | Método | Ruta | Para qué |
 |---|---|---|
-| `POST` | `/api/gov/v1/oauth/token` | OAuth2 *client credentials*: `grant_type`, `client_id` y `client_secret` (JSON o formulario) → token Bearer |
-| `POST` | `/api/gov/v1/identidades/validar` | `{ tipoDocumento, numeroDocumento, nombreCompleto? }` → `{ valida, coincideNombre, registroAuditoria }` |
+| `GET` | `/autorizar` | Página de SGID donde la persona inicia sesión y da su consentimiento |
+| `POST` | `/api/gov/v1/oauth/token` | `grant_type=authorization_code`, `code`, `redirect_uri`, `client_id`, `client_secret` → token Bearer |
+| `GET` | `/api/gov/v1/usuario` | Con el token: nombre, tipo y número de documento, y los factores con los que se verificó |
 
-- **Minimización de datos:** la entidad solo sabe si el documento está
-  registrado y, si lo envió, si el nombre coincide. Nunca recibe los datos.
-- Los errores usan la forma de OAuth2 (`invalid_client`,
-  `insufficient_scope`, `invalid_token`…), que es la que esperan los sistemas
-  que se integran.
-- Revocar la entidad o quitarle el permiso al rol corta el acceso al instante.
+- La URL de retorno debe ser exactamente la registrada; `state` vuelve igual
+  para que el servicio compruebe que la respuesta es suya.
+- El token que recibe un servicio solo sirve para leer la identidad: no
+  funciona como sesión dentro de SGID ni en el panel de administración.
+- Desconectar el servicio corta su acceso al instante, también con tokens ya entregados.
+- Para la demo hay un servicio de prueba en `/servicio-demo.html` (una
+  alcaldía ficticia). En un servicio real, el canje del código se hace en su
+  servidor, nunca en el navegador.
 
 ```bash
-# Ejemplo con curl (cambia el client_id, el secreto y el token)
+# Paso 5, desde el servidor del servicio (cambia los valores)
 curl -X POST http://localhost:3000/api/gov/v1/oauth/token \
   -H "Content-Type: application/json" \
-  -d '{"grant_type":"client_credentials","client_id":"gov-…","client_secret":"…"}'
+  -d '{"grant_type":"authorization_code","code":"…","redirect_uri":"https://servicio.gov.co/retorno","client_id":"gov-…","client_secret":"…"}'
 
-curl -X POST http://localhost:3000/api/gov/v1/identidades/validar \
-  -H "Authorization: Bearer <access_token>" -H "Content-Type: application/json" \
-  -d '{"tipoDocumento":"CC","numeroDocumento":"1005184201","nombreCompleto":"Ana Pérez"}'
+curl http://localhost:3000/api/gov/v1/usuario -H "Authorization: Bearer <access_token>"
 ```
 
 ```mermaid
 sequenceDiagram
-    participant E as Entidad externa
-    participant API as /api/gov/v1
-    participant S as ServicioIntegracion
-    participant P as RepositorioIdentidadProxy
-    participant R as RepositorioUsuariosArchivo
+    participant P as Persona
+    participant S as Servicio del Estado
+    participant SGID as SGID
+    participant Px as RepositorioIdentidadProxy
 
-    E->>API: POST /oauth/token (client_id, client_secret)
-    API->>S: emitirToken()
-    Note over S: FlujoContrasenaSegura + límite de intentos + auditoría
-    S-->>E: access_token (JWT firmado)
-    E->>API: POST /identidades/validar (Bearer)
-    Note over API: firma, vigencia, entidad activa y permiso en el rol actual
-    API->>S: validarIdentidad()
-    Note over S: Flyweight revisa el formato del documento
-    S->>P: obtener(id seudónimo)
-    P->>P: ¿la credencial tiene validar-identidad-externa?
-    P->>R: obtener()
-    R-->>S: identidad (descifrada)
-    S-->>E: { valida: true, coincideNombre: true }
+    P->>S: "Iniciar sesión con SGID"
+    S->>SGID: /autorizar?client_id&redirect_uri&state
+    P->>SGID: contraseña + código SMS + rostro
+    P->>SGID: Permitir
+    SGID-->>S: redirect_uri?code&state
+    S->>SGID: POST /oauth/token (code + client_secret)
+    Note over SGID: secreto con límite de intentos y auditoría (Decorator)<br/>credencial de solo lectura (Builder)
+    SGID-->>S: access_token
+    S->>SGID: GET /usuario (Bearer)
+    SGID->>Px: obtener(usuario)
+    Px-->>SGID: identidad (si el token trae consultar-identidad)
+    SGID-->>S: nombre, documento, factores
 ```
 
 ## Requisito 4 — Estándares de seguridad
@@ -1658,9 +1668,9 @@ sequenceDiagram
 | Seudonimización | El identificador de cada persona es un HMAC del documento: se puede buscar por documento sin guardarlo en claro | `ServicioUsuarios.idPara()` |
 | Credencial firmada | **JWT HS256** con expiración y `jti`; cualquier cambio rompe la firma; revocación al cerrar sesión | `infrastructure/seguridad/tokens-jwt.ts` |
 | Trazabilidad / auditoría | Bitácora de solo agregar, **encadenada con SHA-256**: editar o borrar una línea rompe la cadena y se detecta | `infrastructure/auditoria/bitacora-auditoria.ts` |
-| Fuerza bruta | Límite de intentos en los tres factores y en el secreto de cliente; código SMS de un solo uso | Decorator `AutenticadorConLimiteIntentos` |
+| Fuerza bruta | Límite de intentos en los tres factores y en el secreto de cada servicio; código SMS y código de autorización de un solo uso | Decorator `AutenticadorConLimiteIntentos` |
 | Menor privilegio | Rol asignado por el servidor; permisos revisados contra el rol actual en cada petición | `web/seguridad-http.ts` |
-| Minimización y enmascarado | La API responde solo sí/no; el panel muestra `******4201` | `application/comun.ts` |
+| Minimización y enmascarado | El servicio recibe solo nombre, documento y factores, con consentimiento; el panel muestra `******4201` | `application/comun.ts` |
 | Encabezados HTTP | CSP, `X-Frame-Options`, `nosniff`, `Referrer-Policy`, `Cache-Control: no-store` en la API | `web/seguridad-http.ts` |
 | Secretos fuera del código | `.env` (ignorado por git); en producción el sistema **no arranca** con las claves de desarrollo | `ConfigManager` |
 | XSS en la interfaz | Todo lo que se pinta pasa por un escape de HTML | `public/js/util.js` |
@@ -1682,7 +1692,7 @@ certificado frente a ellos; es una implementación académica de sus ideas.
 ## Archivos añadidos en esta etapa
 
 ```
-src/domain/usuarios/usuario.ts                              # Usuario y entidad externa
+src/domain/usuarios/usuario.ts                              # Usuario y servicio conectado
 src/domain/permisos/rol.ts                                  # Rol editable
 src/application/comun.ts                                    # Error de negocio, enmascarado, tipo de documento
 src/application/auth/factor-contrasena-segura.ts            # Producto nuevo (Factory Method)
@@ -1692,14 +1702,15 @@ src/application/auth/servicio-inicio-sesion.ts              # Iniciar sesión co
 src/application/credencial/director-credenciales-por-rol.ts # Director nuevo (Builder)
 src/application/permisos/gestor-roles.ts                    # Catálogo de permisos y roles como árbol Composite
 src/application/usuarios/servicio-usuarios.ts               # Registro y gestión de usuarios
-src/application/integracion/servicio-integracion.ts         # OAuth2 y validación de identidad
+src/application/integracion/servicio-integracion.ts         # Iniciar sesión con SGID (OAuth2)
 src/infrastructure/seguridad/criptografia.ts                # scrypt, AES-256-GCM y huella HMAC
 src/infrastructure/seguridad/tokens-jwt.ts                  # JWT firmado
 src/infrastructure/persistencia/coleccion-json.ts           # Lista de objetos en un archivo JSON
 src/infrastructure/persistencia/repositorio-usuarios-archivo.ts # Usuarios cifrados (sujeto real del Proxy)
 src/infrastructure/auditoria/bitacora-auditoria.ts          # Bitácora encadenada
 src/web/app.ts, seguridad-http.ts, rutas/                   # Arma el sistema y expone la API REST
-public/js/                                                  # Interfaz: registro, sesión, perfil, panel, API
+public/js/                                                  # Interfaz: registro, sesión, perfil, panel
+public/servicio-demo.html, js/servicio-demo.js              # Servicio de prueba que usa "Iniciar sesión con SGID"
 .env.example                                                # Configuración de ejemplo
 ```
 

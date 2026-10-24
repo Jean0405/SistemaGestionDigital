@@ -1,7 +1,8 @@
 import { createHmac, randomUUID, timingSafeEqual } from 'crypto';
 import { CredencialDigital } from '../../domain/credencial/credencial-digital';
 
-export type CredencialFirmada = CredencialDigital & { jti: string };
+/** `aud` (audiencia) solo existe en los tokens entregados a un servicio conectado: es su client_id. */
+export type CredencialFirmada = CredencialDigital & { jti: string; aud?: string };
 
 function aBase64(datos: object): string {
   return Buffer.from(JSON.stringify(datos)).toString('base64url');
@@ -17,9 +18,9 @@ export class TokensJwt {
 
   constructor(private readonly secreto: string) {}
 
-  emitir(credencial: CredencialDigital): string {
+  emitir(credencial: CredencialDigital, audiencia?: string): string {
     const cabecera = aBase64({ alg: 'HS256', typ: 'JWT' });
-    const contenido = aBase64({ ...credencial, jti: randomUUID() });
+    const contenido = aBase64({ ...credencial, jti: randomUUID(), aud: audiencia });
     return `${cabecera}.${contenido}.${this.firmar(`${cabecera}.${contenido}`)}`;
   }
 

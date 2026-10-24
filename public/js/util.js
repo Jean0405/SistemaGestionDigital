@@ -6,6 +6,8 @@ export const estado = {
   token: leerSesion('sgid.token'),
   perfil: null,
   avisos: JSON.parse(leerSesion('sgid.avisos') ?? 'null'),
+  /** Si la persona llegó desde un servicio del Estado: { clientId, redirectUri, state, servicio }. */
+  autorizacion: null,
 };
 
 function leerSesion(clave) {
@@ -75,6 +77,17 @@ export function h(partes, ...valores) {
 /** Reemplaza el contenido de un elemento. Acepta bloques h``, listas de bloques o texto (que se escapa). */
 export function pintar(elemento, contenido) {
   elemento.innerHTML = interpolar(contenido);
+  dibujarIconos();
+}
+
+/** Convierte los <i data-lucide="..."> en iconos SVG de Lucide. */
+export function dibujarIconos() {
+  window.lucide?.createIcons();
+}
+
+/** Un icono de Lucide para usar dentro de h``. */
+export function icono(nombre) {
+  return new HtmlSeguro(`<i data-lucide="${esc(nombre)}"></i>`);
 }
 
 /** Línea de estado bajo un formulario: verde si salió bien, roja si no. */
@@ -100,13 +113,4 @@ export function datosFormulario(formulario) {
 
 export function fecha(valor) {
   return new Date(valor).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'medium' });
-}
-
-/** Bloque "petición / respuesta" para explicar qué viaja por la red. */
-export function intercambioHttp(peticion, respuesta) {
-  return h`<div class="http">
-    <div class="http__titulo">Petición</div><pre>${peticion}</pre>
-    <div class="http__titulo">Respuesta <span class="chip ${respuesta.ok ? 'chip--ok' : 'chip--error'}">${respuesta.status}</span></div>
-    <pre>${JSON.stringify(respuesta.datos, null, 2)}</pre>
-  </div>`;
 }
