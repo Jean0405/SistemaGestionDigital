@@ -1,7 +1,7 @@
 {
   "name": "sistema-gestion-digital",
   "version": "1.0.0",
-  "description": "Sistema de Gestión de Identidad Digital (SGID): autenticación biométrica multifactor, roles y permisos, integración gubernamental y seguridad, con 9 patrones de diseño",
+  "description": "Sistema de Gestión de Identidad Digital (SGID): autenticación biométrica multifactor, roles y permisos, integración gubernamental y seguridad, con 11 patrones de diseño",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
@@ -22,6 +22,8 @@
     "decorator",
     "flyweight",
     "proxy",
+    "strategy",
+    "template-method",
     "hexagonal",
     "identidad-digital",
     "typescript",

@@ -1,6 +1,12 @@
 # Sistema de Gestión de Identidad Digital (SGID)
 
-## Ejecutar rápido
+SGID es el sistema donde el ciudadano inicia sesión para todo el Estado. Se
+registra una vez, verifica su identidad con dos factores que elige entre tres
+(contraseña, código al teléfono o rostro) y los servicios públicos, como una alcaldía o un
+hospital, lo usan como su forma de autenticación con **"Iniciar sesión con
+SGID"**. Así ningún servicio tiene que construir su propio login.
+
+## Ejecutar
 
 ```bash
 npm install
@@ -8,685 +14,174 @@ copy .env.example .env   # en bash: cp .env.example .env
 npm run web              # abre http://localhost:3000
 ```
 
-## Descripción general
-
-Este proyecto corresponde al desarrollo de un sistema backend enfocado en el sector gobierno, cuyo propósito central es unificar la manera en que los ciudadanos acreditan su identidad frente a distintas entidades del Estado. En lugar de que cada dependencia gubernamental maneje su propio esquema de autenticación, SGID es el único lugar donde el ciudadano inicia sesión: verifica su identidad con biometría multifactor y los servicios del Estado lo integran como su método de autenticación ("Iniciar sesión con SGID"), igual que muchos sitios usan "Iniciar sesión con Google".
-
-## Justificación
-
-La motivación de este trabajo surge de un problema bastante recurrente en la administración pública: los sistemas de identidad suelen estar dispersos entre distintas plataformas, cada una con su propio mecanismo de acceso, generalmente basado en credenciales simples (usuario y contraseña). Esto trae consigo varias dificultades:
-
-- Mayor exposición a suplantación de identidad, dado lo débil de los mecanismos actuales.
-- Necesidad de que el ciudadano gestione múltiples credenciales para trámites distintos.
-- Poca capacidad de auditoría sobre quién accedió a qué información y en qué momento.
-- Baja interoperabilidad entre las entidades del Estado, que terminan trabajando de forma aislada.
-
-Frente a este panorama, se propone construir un sistema que centralice la verificación de identidad y que todos los servicios del Estado usen como su forma de iniciar sesión, reduciendo así la duplicidad de esfuerzos y elevando el nivel de seguridad general.
-
-## Objetivos del proyecto
-
-- Implementar un mecanismo de autenticación biométrico que incorpore un segundo factor de verificación.
-- Definir un esquema de roles y permisos que permita diferenciar el nivel de acceso según el tipo de usuario o entidad.
-- Permitir que los servicios del Estado se conecten a SGID y lo usen como su método de inicio de sesión.
-- Ajustar el manejo de la información sensible a criterios de seguridad exigidos a nivel estatal.
-
-## Funcionalidades contempladas
-
-**Autenticación biométrica multifactor.** El acceso no depende únicamente de una contraseña, sino que se combina con verificación biométrica para reducir el riesgo de accesos no autorizados.
-
-**Gestión de permisos y roles.** Se maneja un modelo de control de acceso basado en roles (RBAC), donde ciudadanos y administradores cuentan con distintos niveles de visibilidad y acción dentro del sistema.
-
-**Integración con servicios gubernamentales.** Los servicios del Estado se conectan a SGID y ofrecen "Iniciar sesión con SGID": mandan al ciudadano a SGID, este se autentica una vez y el servicio recibe su identidad verificada, sin implementar su propia autenticación.
-
-**Cumplimiento de estándares de seguridad.** Se contempla cifrado de la información, registro de auditoría y trazabilidad de las operaciones que involucren datos sensibles del ciudadano.
-
-## Actores involucrados
-
-| Actor | Rol dentro del sistema |
+| Comando | Qué hace |
 |---|---|
-| Ciudadano | Persona que se autentica y cuya identidad es gestionada por el sistema |
-| Administrador | Encargado de configurar roles, permisos y supervisar el funcionamiento general |
-| Servicio del Estado conectado | Portal o trámite (alcaldía, hospital, notaría) que usa SGID para iniciar sesión |
+| `npm test` | Corre las 42 pruebas |
+| `npm start` | Demo por consola de los patrones, con datos fijos |
+| `npm run demo` | Demo interactiva por consola |
+| `npm run datos:borrar` | Borra usuarios, roles, servicios y auditoría (vuelve al primer arranque) |
 
-## Enfoque arquitectónico
+La primera persona que se registra queda como administrador. El rostro
+necesita cámara e internet; con cámara real funciona bien
+`BIOMETRIA_UMBRAL=0.5`, que ya viene en `.env.example`.
 
-Para este proyecto se optó por el patrón **Hexagonal (Ports & Adapters)**. La razón detrás de esta elección tiene que ver con la naturaleza del sistema: al depender de múltiples integraciones externas (dispositivos biométricos, servicios de otras entidades, base de datos), resultaba conveniente aislar la lógica de negocio de los detalles técnicos de cada integración. De esta forma, el núcleo del sistema no depende directamente de ninguna tecnología específica, y los adaptadores pueden modificarse o reemplazarse sin alterar las reglas de negocio.
+Para entrar, la persona escribe su documento y elige su primer método
+(rostro, contraseña o código SMS); al superarlo, elige un segundo método
+distinto y entra. En el pie de página, **Ver patrones de diseño** muestra qué
+patrón usa cada parte de la pantalla (útil para presentar); apagado, la
+interfaz queda limpia.
+
+## Qué cumple
+
+| Requisito | Cómo se cumple |
+|---|---|
+| Autenticación biométrica multifactor | La persona elige 2 de 3 factores (contraseña, código SMS, rostro), con límite de 3 intentos por factor |
+| Gestión de permisos y roles | Roles armados como un árbol de permisos, editables desde el panel de administración |
+| Integración con servicios gubernamentales | Los servicios se conectan a SGID y lo usan para iniciar sesión (OAuth2) |
+| Estándares de seguridad | Contraseñas con hash, datos sensibles cifrados, tokens firmados y auditoría encadenada |
+
+## Actores
+
+| Actor | Rol |
+|---|---|
+| Ciudadano | Se registra, inicia sesión y consulta su identidad |
+| Administrador | Gestiona roles, permisos, usuarios y servicios conectados, y revisa la auditoría |
+| Servicio del Estado | Portal o trámite que usa SGID para iniciar sesión |
+
+## Arquitectura
+
+Se usa arquitectura **hexagonal (puertos y adaptadores)**: la lógica de
+negocio no depende de cómo se guardan los datos ni de qué proveedor envía los
+SMS, así esas piezas se pueden cambiar sin tocar las reglas.
 
 ```
 src/
-├── domain/          # Entidades y reglas de negocio, y los puertos que necesitan (repositorios, auditoría)
-├── application/     # Casos de uso y puertos de seguridad (hash, cifrado, tokens)
-├── infrastructure/  # Adaptadores concretos: archivos JSON, criptografía, SMS, auditoría
-└── web/             # Capa de entrada: API REST (Express) y el contenedor que conecta todo
+├── domain/          # Entidades y reglas de negocio
+├── application/     # Casos de uso
+├── infrastructure/  # Adaptadores: archivos JSON, criptografía, SMS, auditoría
+└── web/             # API REST (Express)
+public/              # Interfaz web
 ```
 
-## Tecnologías utilizadas
+**Tecnologías:** TypeScript, Node.js 20.12+, Express, Jest, face-api.js
+(rostro en el navegador) y el módulo `crypto` de Node. Los datos se guardan
+en archivos JSON dentro de `data/`.
 
-- Lenguaje: TypeScript
-- Entorno de ejecución: Node.js (20.12 o superior)
-- Servidor web: Express
-- Persistencia: archivos JSON en `data/`, con los datos sensibles cifrados (la arquitectura hexagonal
-  permite cambiarlo por PostgreSQL escribiendo otro adaptador de los mismos puertos)
-- Autenticación: tres factores (contraseña, código SMS, rostro con [face-api.js](https://github.com/justadudewhohacks/face-api.js)),
-  credencial como JWT firmado (HS256) y OAuth2 *authorization code* para los servicios conectados
-- Criptografía: módulo `crypto` nativo de Node (scrypt, AES-256-GCM, HMAC-SHA256, SHA-256), sin dependencias extra
-- Pruebas: Jest
+## Patrones de diseño
 
-## Consideraciones no funcionales
-
-Más allá de las funcionalidades propias del sistema, se tuvieron en cuenta ciertos aspectos que resultan igual de relevantes dado el contexto gubernamental del proyecto: la seguridad de la información (cifrado y auditoría), la disponibilidad del servicio, la capacidad de escalar conforme aumente el número de ciudadanos e integraciones, y la trazabilidad de cada operación realizada sobre la identidad de un usuario.
-
-## Patrones de diseño implementados
-
-| Etapa | Patrón | Para qué se usó | Carpeta principal |
+| Etapa | Patrón | Para qué se usó | Carpeta |
 |---|---|---|---|
-| 2 | Singleton | Una sola fuente de configuración para todo el sistema | `infrastructure/config` |
-| 3 | Factory Method | Autenticación multifactor (contraseña, token, rostro) | `application/auth` |
-| 4 | Builder | Armar paso a paso la credencial digital emitida | `application/credencial` |
-| 5 | Adapter | Enviar SMS a través de SDKs de proveedores incompatibles | `infrastructure/notificaciones` |
-| 6 | Bridge | Separar el tipo de notificación del canal de envío | `application/notificaciones` |
-| 7 | Composite | Catálogo de permisos agrupados en árbol | `domain/permisos` |
-| 8 | Decorator | Bitácora y límite de intentos sobre la autenticación | `application/auth` |
-| 9 | Flyweight | Compartir los tipos de documento entre muchos ciudadanos | `domain/documentos` |
-| 10 | Proxy | Acceso protegido a los datos de identidad | `application/identidad` |
-| 11 | *(los mismos, extendidos)* | Iniciar sesión con SGID para los servicios del Estado, seguridad y panel de administración | `application/integracion`, `web/` |
-
-## Cómo ejecutar la demo completa
-
-```bash
-npm install          # instalar dependencias
-npm test             # correr las 42 pruebas
-npm start            # compilar y ejecutar la demostración de las 10 etapas, de punta a punta
-npm run web          # levantar la interfaz web en http://localhost:3000, para probar en vivo
-npm run datos:borrar # borrar usuarios, roles, servicios y auditoría (volver al primer arranque)
-```
-
-`npm start` recorre, en orden, las diez etapas con datos fijos: arranca la
-configuración, envía el código de seguridad, autentica con los tres factores,
-emite la credencial, avisa que está lista, consulta la identidad a través del
-proxy, revisa los permisos del administrador, prueba la autenticación
-protegida y comparte los tipos de documento. El detalle de cada patrón está
-en las secciones de abajo.
-
-## Demo en vivo (interfaz web)
-
-`npm start` siempre usa los mismos valores, útil para ver rápido que todo
-funciona pero no para mostrarlo en vivo. Para eso está la interfaz web, que
-pide datos reales y por debajo usa las mismas clases de cada patrón.
-
-### Antes de presentar
-
-```bash
-# 1. Configuración: copia el ejemplo y cambia los secretos
-copy .env.example .env      # PowerShell / cmd   (en bash: cp .env.example .env)
-
-# 2. Arranca el servidor
-npm run web
-```
-
-Abre **http://localhost:3000**. El archivo `.env` trae `BIOMETRIA_UMBRAL=0.5`,
-que es lo que suele funcionar con una cámara real (el valor por defecto, 0.85,
-está pensado para las demos con puntajes escritos a mano). El reconocimiento
-facial **necesita permiso de cámara e internet** (face-api.js se descarga de
-un CDN la primera vez).
-
-Todo lo que se registra queda en la carpeta `data/` (ignorada por git), así
-que el administrador y sus roles siguen ahí después de reiniciar el servidor.
-`npm run datos:borrar` vuelve al primer arranque.
-
-### Guion sugerido
-
-| Paso | Pestaña | Qué se muestra | Patrones |
-|---|---|---|---|
-| 1 | Registro | **Primer arranque:** se registra el administrador (nombre, documento, teléfono, contraseña y rostro con la cámara). Queda guardado. | Flyweight valida el documento |
-| 2 | Iniciar sesión | El administrador supera los 3 factores en cualquier orden. El código llega a un **teléfono simulado** en pantalla. 3 fallos bloquean el factor. | Factory Method, Decorator, Adapter, Singleton (umbral) |
-| 3 | Mi perfil | Credencial emitida, token JWT decodificado, identidad descifrada, árbol de permisos del rol y aviso de inicio de sesión por SMS y correo. | Builder, Proxy, Composite, Bridge |
-| 4 | Administración → Roles y permisos | Crear un rol (p. ej. `auditor`) marcando un **grupo completo** y un permiso suelto; se ven los permisos efectivos. | Composite |
-| 5 | Administración → Servicios conectados | Conectar "Alcaldía de Villa Esperanza": aparece su `client_id` y `client_secret` (una sola vez) y el botón "Abrir servicio de prueba". | — |
-| 6 | Servicio de prueba (alcaldía) | La alcaldía no tiene usuarios propios: botón **"Iniciar sesión con SGID"** → SGID pide el consentimiento → la persona vuelve a la alcaldía con su identidad verificada. | Builder, Proxy, Decorator, Flyweight |
-| 7 | Servicios conectados | Desconectar la alcaldía: ya no puede usar SGID ni leer datos con el token que tenía. | — |
-| 8 | Registro / Usuarios | Registrar a otra persona (entra como ciudadano) y cambiarle el rol desde el panel. "Desbloquear" reinicia el límite de intentos. | Decorator |
-| 9 | Auditoría | Todo quedó registrado, incluido cada inicio de sesión en un servicio, y la cadena de hashes está íntegra. Si se edita a mano `data/auditoria.jsonl`, la pantalla muestra en qué registro se rompió. | — |
-
-Para mostrar el cifrado, abre `data/usuarios.json`: el documento, el
-teléfono, el correo y el rostro se ven como texto cifrado y la
-contraseña solo como su hash (`sal:hash`).
-
-`demo-interactivo.ts` sigue disponible como alternativa por consola, sin
-cámara ni navegador:
-
-```bash
-npm run demo
-```
+| 2 | Singleton | Una sola configuración para todo el sistema | `infrastructure/config` |
+| 3 | Factory Method | Los tres factores de autenticación | `application/auth` |
+| 4 | Builder | Armar la credencial digital paso a paso | `application/credencial` |
+| 5 | Adapter | Enviar SMS con dos proveedores distintos | `infrastructure/notificaciones` |
+| 6 | Bridge | Separar el tipo de aviso del canal de envío | `application/notificaciones` |
+| 7 | Composite | Permisos agrupados en árbol | `domain/permisos` |
+| 8 | Decorator | Bitácora, auditoría y límite de intentos | `application/auth` |
+| 9 | Flyweight | Compartir los tipos de documento | `domain/documentos` |
+| 10 | Proxy | Proteger el acceso a los datos de identidad | `application/identidad` |
+| 11 | *(los mismos)* | Iniciar sesión con SGID, seguridad y panel de administración | `application/`, `web/` |
+| 12 | Strategy | Regla de contraseña distinta según el rol | `application/usuarios` |
+| 13 | Template Method | Exportar la auditoría en JSON o CSV con el mismo procedimiento | `application/auditoria` |
 
 ---
 
-# ETAPA 2 — Patrón Singleton (primera funcionalidad)
+## ETAPA 2 — Singleton
 
-En esta etapa se armó la primera parte con código del sistema y se le aplicó
-el patrón **Singleton**.
+**Qué es:** asegura que una clase tenga una sola instancia y un único punto de acceso.
 
-## Qué se hizo
+**En el proyecto:** `ConfigManager` lee la configuración (puerto, secretos,
+umbral facial) una sola vez y todo el sistema la pide con
+`ConfigManager.getInstance()`. Así nadie trabaja con valores distintos.
 
-Se construyó un **Gestor de Configuración** (`ConfigManager`): la pieza que
-guarda los datos que el sistema necesita para arrancar (puerto de la API,
-clave de los tokens, datos de la base de datos, qué tan exigente es la
-verificación biométrica). Los lee **una sola vez** al inicio y después se los
-pasa igual a cualquier parte del sistema que se los pida.
+**Archivos:** `infrastructure/config/config-manager.ts`, `application/auth/verificador-biometrico.ts`
 
-## Por qué Singleton
-
-Porque la configuración tiene que ser **una sola para todos**. Si cada módulo
-armara la suya, podrían terminar trabajando con datos distintos. El Singleton
-asegura que exista una única copia, que se crea la primera vez que hace falta
-y a la que siempre se llega por el mismo lado (`ConfigManager.getInstance()`).
-
-## Cómo incide en el código
-
-- Todos los módulos leen la configuración del mismo lugar, así que no hay
-  descuadres entre unos y otros.
-- Los datos se leen y se revisan una sola vez, no cada rato.
-- No hay que andar pasando la configuración de un lado a otro por parámetros.
-- Si algún día cambia de dónde salen esos datos, se ajusta solo dentro del
-  gestor y nada más.
-
-Ejemplo dentro del proyecto: el `VerificadorBiometrico` no tiene el umbral
-escrito a mano en el código, se lo pide al gestor.
-
-## Cómo ejecutar
-
-```bash
-npm install       # instalar dependencias
-npm test          # correr las pruebas
-npm run build     # compilar
-node dist/index.js  # ver la demostración
-```
-
-## Pruebas / Testing
-
-Las pruebas están en [`tests/`](tests) y se ejecutan con `npm test`.
-Cubren el comportamiento del patrón (instancia única, carga única,
-inmutabilidad, validaciones) y su uso desde otro módulo.
-
-Estado actual: **12 pruebas, todas en verde.**
-
-## Archivos añadidos en esta etapa
-
-```
-src/infrastructure/config/config-manager.ts     # El Singleton
-src/application/auth/verificador-biometrico.ts   # Módulo que lo consume
-src/index.ts                                     # Demostración
-tests/config-manager.test.ts                     # Pruebas del patrón
-tests/verificador-biometrico.test.ts             # Pruebas del uso
-```
+**Pruebas:** `tests/config-manager.test.ts`, `tests/verificador-biometrico.test.ts`
 
 ---
 
-# ETAPA 3 — Patrón Factory Method (autenticación multifactor)
+## ETAPA 3 — Factory Method
 
-En esta etapa se sumó la **autenticación multifactor** y se le aplicó el
-patrón **Factory Method**.
+**Qué es:** una clase define un procedimiento y deja que sus subclases decidan qué objeto crear.
 
-## En una frase
+**En el proyecto:** `FlujoAutenticacion` define cómo se valida un factor
+(limpiar la entrada, verificar, armar el resultado). Cada subclase crea su
+factor con `crearFactor()`. Agregar un factor nuevo es agregar una clase, sin
+tocar las que ya existen.
 
-El sistema comprueba la identidad combinando tres factores:
-
-| Factor | Tipo | Cómo se comprueba |
-|---|---|---|
-| Contraseña | *algo que sabes* | Coincide con la contraseña registrada del usuario |
-| Token al teléfono | *algo que tienes* | Coincide con el código enviado por SMS y todavía vigente (5 min) |
-| Rostro | *algo que eres* | El puntaje del sensor facial alcanza el umbral configurado |
-
-El **procedimiento** para validar un factor es siempre el mismo; lo único que
-cambia es *qué factor* se usa. Esa elección es la que resuelve el Factory
-Method.
-
-## ¿Qué es el patrón Factory Method? (contado fácil)
-
-Piensa en una oficina de trámites con varias ventanillas. El **procedimiento**
-es idéntico en todas: pides turno, entregas tus datos, te dan un resultado. Lo
-que cambia es la **herramienta** de cada ventanilla: una revisa contraseñas,
-otra códigos de SMS, otra tiene la cámara.
-
-El Factory Method es esa idea en código:
-
-1. Una clase "madre" (**el Creador**) define el procedimiento completo.
-2. En medio de ese procedimiento hay **un hueco**: "aquí va el factor", pero
-   la clase madre no dice cuál.
-3. Cada **subclase** rellena ese hueco devolviendo el factor que le toca.
-
-La clase madre nunca escribe `new FactorContrasena()`. Solo llama a su método
-`crearFactor()` y confía en que la subclase lo resuelva.
-
-## Los papeles del patrón en el proyecto
-
-| Papel en el patrón | En el código |
+| Papel | Clase |
 |---|---|
-| Creador (abstracto) | `FlujoAutenticacion` |
-| Método fábrica | `crearFactor()` |
-| Creadores concretos | `FlujoContrasena`, `FlujoTokenTelefono`, `FlujoRostro` |
-| Producto (interfaz) | `FactorAutenticacion` |
-| Productos concretos | `FactorContrasena`, `FactorTokenTelefono`, `FactorRostro` |
+| Creador | `FlujoAutenticacion` |
+| Creadores concretos | `FlujoContrasena`, `FlujoTokenTelefono`, `FlujoRostro`, `FlujoContrasenaSegura` |
+| Producto | `FactorAutenticacion` |
+| Productos concretos | `FactorContrasena`, `FactorTokenTelefono`, `FactorRostro`, `FactorContrasenaSegura` |
 
-El **procedimiento común** vive en `FlujoAutenticacion.autenticar()`: limpia la
-entrada, corta si viene vacía, ejecuta el factor y devuelve un resultado con
-la misma forma para todos (`factor`, `autenticado`, `motivo`).
+**Archivos:** `application/auth/factor-*.ts`, `application/auth/flujo-*.ts`
 
-Cada **factor** guarda su propia regla:
+**Pruebas:** `tests/factores-autenticacion.test.ts`, `tests/flujo-autenticacion.test.ts`
 
-- `FactorContrasena` compara contra la contraseña registrada.
-- `FactorTokenTelefono` compara el código **y** revisa que no haya expirado.
-- `FactorRostro` compara el puntaje facial contra el umbral, que **no está
-  escrito ahí**: lo pide al Gestor de Configuración (el Singleton de la
-  ETAPA 2).
-
-## ¿Cómo incide (afecta) este patrón en el código?
-
-### Sin Factory Method
-
-El flujo tendría un `switch` que hay que reabrir con cada factor nuevo:
-
-```ts
-if (tipo === 'contraseña') { /* crea y usa contraseña */ }
-else if (tipo === 'token') { /* crea y usa token */ }
-else if (tipo === 'rostro') { /* crea y usa rostro */ }
-```
-
-La lógica de "cómo se autentica" queda mezclada con la de "qué factor es", y
-cada cambio arriesga romper lo que ya funcionaba.
-
-### Con Factory Method
-
-- **El procedimiento se escribe una sola vez**, en `FlujoAutenticacion`.
-- **Agregar un factor es agregar una clase** (por ejemplo, una llave física
-  USB): no se toca lo existente (principio abierto/cerrado).
-- **Cada factor guarda su regla en su propio archivo**, sin estorbar a los
-  demás.
-- **El resto del sistema trata a todos los flujos igual**: recibe un
-  `FlujoAutenticacion` y llama a `autenticar()`, sin saber cuál es. Eso es lo
-  que permite el intento multifactor: recorrer una lista de flujos distintos
-  con el mismo código.
-
-### Conexión con la ETAPA 2
-
-`FactorRostro` no tiene el umbral escrito a mano:
-
-```ts
-const umbral = ConfigManager.getInstance().obtener('biometriaUmbralMinimo');
-const superado = puntaje >= umbral;
-```
-
-El **Singleton** garantiza que ese umbral sea único para todo el sistema y el
-**Factory Method** lo aplica dentro del factor facial sin que el flujo se
-entere.
-
-## Dónde encaja en la arquitectura hexagonal
-
-Productos y creadores viven en la capa de **aplicación** (`application/auth`):
-orquestan el caso de uso "autenticar a una persona" y, en el caso del rostro,
-consultan la configuración. La capa de infraestructura solo aporta ese dato.
-
-## Cosas a tener en cuenta del Factory Method
-
-| Punto flojo | Qué se hizo aquí |
-|---|---|
-| Aparecen varias clases pequeñas (una por producto y otra por creador) | Se aceptó a cambio de que cada archivo sea corto y de una sola responsabilidad |
-| Puede ser exagerado si solo hubiera un factor | Aquí hay tres reales y se esperan más, así que se justifica |
-| El creador podría cargarse de lógica | `FlujoAutenticacion` solo limpia la entrada y arma el resultado; la regla de cada factor está en su propia clase |
-
-## Pruebas / Testing
-
-Las pruebas nuevas están en [`tests/`](tests):
-
-**`tests/factores-autenticacion.test.ts`** — cada factor (Producto) por separado:
-
-| Prueba | Qué revisa |
-|---|---|
-| Contraseña | Se acepta solo si coincide con la registrada |
-| Token al teléfono | Vale solo si es el código enviado y no expiró |
-| Rostro | Se mide contra el umbral que entrega el Singleton |
-
-**`tests/flujo-autenticacion.test.ts`** — el Factory Method:
-
-| Prueba | Qué revisa |
-|---|---|
-| Creación del factor | `crearFactor()` devuelve el producto correcto en cada subclase |
-| Paso común | El creador rechaza una entrada vacía sin ejecutar el factor |
-| Factory Method + Singleton | Si cambia el umbral en config, el flujo de rostro cambia su decisión |
-| Uso polimórfico | Un mismo código recorre los tres flujos en un intento multifactor |
-
-Estado actual: **19 pruebas, todas en verde** (12 de la ETAPA 2 + 7 nuevas).
-
-![alt text](/docs/img/image.png)
-
-## Archivos añadidos en esta etapa
-
-```
-src/application/auth/factor-autenticacion.ts     # Contrato (Producto) + ResultadoFactor
-src/application/auth/factor-contrasena.ts         # Producto concreto
-src/application/auth/factor-token-telefono.ts     # Producto concreto
-src/application/auth/factor-rostro.ts             # Producto concreto (usa el Singleton)
-src/application/auth/flujo-autenticacion.ts        # Creador abstracto (define el Factory Method)
-src/application/auth/flujo-contrasena.ts           # Creador concreto
-src/application/auth/flujo-token-telefono.ts       # Creador concreto
-src/application/auth/flujo-rostro.ts               # Creador concreto
-tests/factores-autenticacion.test.ts              # Pruebas de los Productos
-tests/flujo-autenticacion.test.ts                 # Pruebas del Factory Method
-```
+![Pruebas Factory Method](docs/img/image.png)
 
 ---
 
-# ETAPA 4 — Patrón Builder (emisión de la credencial digital)
+## ETAPA 4 — Builder
 
-En esta etapa se sumó la **emisión de la credencial digital** que recibe un
-usuario tras autenticarse, y se le aplicó el patrón **Builder**.
+**Qué es:** construye un objeto complicado paso a paso, en vez de pasarle todos los datos de golpe a un constructor.
 
-## En una frase
+**En el proyecto:** la `CredencialDigital` (usuario, rol, permisos, factores,
+vigencia) se arma con `CredencialDigitalBuilder`. El builder valida que no
+falte nada y calcula la expiración con el Singleton. El director conoce la
+receta de cada rol.
 
-Una `CredencialDigital` (usuario, rol, permisos, factores con los que se
-autenticó, fecha de emisión y de expiración) es un objeto con varias partes
-opcionales que se arman de a poco. En vez de un constructor con muchos
-parámetros, un **builder** la arma paso a paso y un **director** conoce la
-receta de permisos según el rol (ciudadano, administrador, entidad externa).
-
-## ¿Qué es el patrón Builder?
-
-Piensa en pedir una hamburguesa personalizada: primero el pan, luego la
-carne, después decides qué agregarle (queso, tocineta, salsas), y al final
-"arman" el pedido. Nadie llama a un constructor gigante con veinte
-parámetros donde hay que acordarse del orden de cada ingrediente.
-
-El Builder es esa idea en código:
-
-1. Un objeto **builder** ofrece métodos para ir agregando partes
-   (`establecerUsuario()`, `agregarPermiso()`, etc.), uno por uno.
-2. Al final se llama a un método (`obtenerCredencial()`) que entrega el
-   objeto ya armado y revisado.
-3. Un **director**, si existe, conoce recetas fijas (por ejemplo, "así se arma
-   la credencial de un administrador") y usa el builder para seguirlas, sin
-   que quien lo llama tenga que saber el detalle de cada paso.
-
-## Los papeles del patrón en el proyecto
-
-| Papel en el patrón | En el código |
+| Papel | Clase |
 |---|---|
 | Producto | `CredencialDigital` |
-| Builder (interfaz) | `ConstructorCredencial` |
-| Builder concreto | `CredencialDigitalBuilder` |
-| Director | `DirectorCredenciales` |
-
-`CredencialDigitalBuilder` va guardando usuario, rol, permisos y factores
-superados, y solo en `obtenerCredencial()`:
-
-- valida que no falte nada esencial (usuario, rol, al menos un factor),
-- calcula la fecha de expiración con los minutos de vigencia del **Gestor de
-  Configuración** (el Singleton de la ETAPA 2),
-- entrega la credencial ya congelada (`Object.freeze`).
-
-`DirectorCredenciales` tiene una receta por cada actor del sistema (ver
-`Actores involucrados` más arriba): `construirCredencialCiudadano()`,
-`construirCredencialAdministrador()` y `construirCredencialEntidadExterna()`.
-Cada una arma el mismo tipo de objeto pero con permisos distintos.
-
-## ¿Cómo incide (afecta) este patrón en el código?
-
-### Sin Builder
-
-La credencial se armaría con un constructor o una función con muchos
-parámetros, varios de ellos opcionales:
-
-```ts
-crearCredencial('u1', 'Ana', 'ciudadano', ['contraseña', 'rostro'], ['consultar-identidad'], ...)
-```
-
-Fácil de llamar mal (orden de argumentos, olvidar uno) y difícil de leer.
-
-### Con Builder
-
-- **Se arma de a poco y con nombre en cada paso**
-  (`.establecerRol('ciudadano').agregarPermiso(...)`), sin adivinar el orden
-  de parámetros.
-- **La validación queda en un solo lugar** (`obtenerCredencial()`): no se
-  puede olvidar revisar un dato antes de emitir la credencial.
-- **El director evita repetir la receta de cada rol** en cada lugar del
-  código que necesite emitir una credencial.
-- **Agregar un permiso o un rol nuevo no toca al builder**, solo al director
-  (o a quien llame al builder directamente).
-
-### Cómo se conecta con las etapas anteriores
-
-La credencial se emite **después** de un intento de autenticación
-multifactor (ETAPA 3) exitoso, y con los factores que sí se superaron:
-
-```ts
-const credencial = director.construirCredencialCiudadano(id, nombre, factoresSuperados);
-```
-
-Y su vigencia no está escrita a mano: sale del mismo Singleton que ya
-entregaba el umbral biométrico.
-
-```ts
-const minutos = ConfigManager.getInstance().obtener('jwtExpiracionMinutos');
-```
-
-## Dónde encaja en la arquitectura hexagonal
-
-- `CredencialDigital` (el producto) vive en el **dominio**: es solo la forma
-  del dato, sin dependencias externas.
-- El builder y el director viven en la **aplicación**: orquestan el caso de
-  uso "emitir una credencial" y consultan la configuración.
-
-## Cosas a tener en cuenta del Builder
-
-| Punto flojo | Qué se hizo aquí |
-|---|---|
-| Puede ser exagerado si el objeto tuviera pocos campos | Aquí hay validaciones y un cálculo (la expiración), no es solo "juntar campos" |
-| El director puede volverse un cajón de recetas si crecen mucho | Por ahora son tres, una por actor del sistema; si crecen se pueden separar por archivo |
-| El builder se puede reutilizar por accidente entre credenciales | El director crea un builder nuevo en cada método, así que no se mezclan datos |
-
-## Pruebas / Testing
-
-Las pruebas nuevas están en [`tests/`](tests):
-
-**`tests/credencial-digital-builder.test.ts`** — el Builder:
-
-| Prueba | Qué revisa |
-|---|---|
-| Armado paso a paso | Los permisos y factores quedan como se fueron agregando |
-| Validación | No entrega la credencial si falta usuario, rol o factores |
-| Vigencia | La expiración usa los minutos del Singleton de configuración |
-
-**`tests/director-credenciales.test.ts`** — el Director:
-![alt text](/docs/img/image-1.png)
-
-| Prueba | Qué revisa |
-|---|---|
-| Recetas por rol | Cada método arma el rol y los permisos que le corresponden |
-| Independencia | Dos credenciales seguidas no comparten datos entre sí |
-
-Estado actual: **24 pruebas, todas en verde** (19 de las etapas anteriores + 5 nuevas).
-
-## UML del flujo (Builder)
-
-```mermaid
-sequenceDiagram
-    participant C as Cliente (index.ts)
-    participant D as DirectorCredenciales
-    participant B as CredencialDigitalBuilder
-    participant CM as ConfigManager (Singleton)
-    participant P as CredencialDigital
-
-    C->>D: construirCredencialCiudadano(id, nombre, factores)
-    D->>B: new CredencialDigitalBuilder()
-    D->>B: establecerUsuario(id, nombre)
-    D->>B: establecerRol("ciudadano")
-    loop por cada factor superado
-        D->>B: agregarFactorSuperado(factor)
-    end
-    D->>B: agregarPermiso("consultar-identidad")
-    D->>B: obtenerCredencial()
-    B->>CM: getInstance().obtener("jwtExpiracionMinutos")
-    CM-->>B: minutos
-    B->>P: arma y congela el objeto
-    B-->>D: CredencialDigital
-    D-->>C: CredencialDigital
-```
+| Builder | `ConstructorCredencial` → `CredencialDigitalBuilder` |
+| Director | `DirectorCredenciales` (recetas fijas), `DirectorCredencialesPorRol` (recetas del panel) |
 
 ```mermaid
 classDiagram
     class ConstructorCredencial {
         <<interface>>
-        +establecerUsuario(usuarioId, nombreCompleto)
-        +establecerRol(rol)
-        +agregarPermiso(permiso)
-        +agregarFactorSuperado(factor)
+        +establecerUsuario()
+        +establecerRol()
+        +agregarPermiso()
+        +agregarFactorSuperado()
         +obtenerCredencial() CredencialDigital
     }
-    class CredencialDigitalBuilder {
-        -usuarioId
-        -rol
-        -permisos
-        -factoresSuperados
-        +obtenerCredencial() CredencialDigital
-    }
+    class CredencialDigitalBuilder
     class DirectorCredenciales {
         +construirCredencialCiudadano()
         +construirCredencialAdministrador()
-        +construirCredencialEntidadExterna()
     }
-    class CredencialDigital {
-        +usuarioId
-        +rol
-        +permisos
-        +factoresSuperados
-        +emitidaEn
-        +expiraEn
-    }
-    class ConfigManager {
-        +getInstance() ConfigManager
-        +obtener(clave)
-    }
+    class CredencialDigital
 
     ConstructorCredencial <|.. CredencialDigitalBuilder
     DirectorCredenciales --> ConstructorCredencial : usa
-    CredencialDigitalBuilder ..> ConfigManager : consulta
     CredencialDigitalBuilder --> CredencialDigital : construye
 ```
 
-## Archivos añadidos en esta etapa
+**Archivos:** `domain/credencial/credencial-digital.ts`, `application/credencial/*`
 
-```
-src/domain/credencial/credencial-digital.ts            # Producto
-src/application/credencial/constructor-credencial.ts    # Builder (interfaz)
-src/application/credencial/credencial-digital-builder.ts # Builder concreto
-src/application/credencial/director-credenciales.ts      # Director
-tests/credencial-digital-builder.test.ts                # Pruebas del Builder
-tests/director-credenciales.test.ts                     # Pruebas del Director
-```
+**Pruebas:** `tests/credencial-digital-builder.test.ts`, `tests/director-credenciales.test.ts`
+
+![Pruebas Builder](docs/img/image-1.png)
 
 ---
 
-# ETAPA 5 — Patrón Adapter (envío de SMS)
+## ETAPA 5 — Adapter
 
-En esta etapa se sumó el **envío del código de seguridad por SMS** (el que
-usa el factor `token-telefono` de la ETAPA 3) y se le aplicó el patrón
-**Adapter**.
+**Qué es:** hace que dos piezas con formas distintas trabajen juntas, como un adaptador de enchufe.
 
-## En una frase
+**En el proyecto:** hay dos SDK de SMS incompatibles (uno usa `sendMessage()`
+y el otro `enviarTexto()`, que además lanza errores). Cada adaptador los
+traduce a la misma interfaz `enviar()`, y si un proveedor falla se usa el otro.
 
-El sistema puede tener que enviar SMS a través de distintos proveedores
-externos, y cada proveedor trae su propio SDK con su propia forma de
-funcionar. El Adapter envuelve cada SDK para que, de cara al resto del
-sistema, todos se usen exactamente igual.
-
-## ¿Qué es el patrón Adapter? (contado fácil)
-
-Piensa en un cargador de celular y un enchufe de otro país: el cargador no
-cambia, pero necesitas un adaptador en el medio para que la clavija encaje.
-El adaptador no hace el trabajo pesado (eso lo sigue haciendo el cargador),
-solo traduce una forma de conexión a otra.
-
-En código pasa lo mismo con dos SDKs de SMS distintos:
-
-- Uno espera `sendMessage(to, body)` y devuelve `{ status, id }`.
-- El otro espera `enviarTexto({ numero, texto })`, devuelve solo un texto y
-  **lanza una excepción** si algo sale mal.
-
-Ninguno de los dos habla el mismo "idioma" que el resto del sistema necesita.
-El Adapter traduce cada uno a una interfaz común, para que quien envía el SMS
-no tenga que saber con cuál proveedor está hablando.
-
-## Los papeles del patrón en el proyecto
-
-| Papel en el patrón | En el código |
+| Papel | Clase |
 |---|---|
-| Interfaz que el sistema espera (Target) | `EnviadorNotificaciones` |
-| Clases externas con forma distinta (Adaptee) | `SmsGlobalSDK`, `SmsLocalSDK` |
+| Interfaz esperada | `EnviadorNotificaciones` |
+| Clases externas | `SmsGlobalSDK`, `SmsLocalSDK` |
 | Adaptadores | `AdaptadorSmsGlobal`, `AdaptadorSmsLocal` |
-
-Cada adaptador recibe el SDK del proveedor, lo llama con su forma propia y
-devuelve siempre lo mismo: `{ enviado, proveedor, referencia }`. Uno traduce
-un `status: 'SENT' | 'FAILED'`; el otro atrapa la excepción y la convierte en
-`enviado: false`, sin que quien llama note la diferencia.
-
-## ¿Cómo incide (afecta) este patrón en el código?
-
-### Sin Adapter
-
-Quien necesite enviar un SMS tendría que conocer el SDK específico de cada
-proveedor, revisar su forma particular de éxito/error, y repetir esa lógica
-en cada lugar del sistema que envíe mensajes. Cambiar de proveedor obligaría
-a tocar todo ese código disperso.
-
-### Con Adapter
-
-- **El resto del sistema solo conoce `EnviadorNotificaciones`**, nunca los
-  SDKs reales.
-- **Cambiar o agregar un proveedor es agregar un adaptador nuevo**, sin tocar
-  el código que ya envía notificaciones.
-- **Las diferencias raras de cada SDK** (una excepción en vez de un valor de
-  retorno, por ejemplo) quedan encerradas dentro de su propio adaptador.
-
-### Conexión con las etapas anteriores
-
-El código que se envía por SMS es el mismo que después verifica
-`FactorTokenTelefono` (ETAPA 3):
-
-```ts
-const envio = new AdaptadorSmsGlobal().enviar(telefono, `Tu código es ${codigo}`);
-// ...
-new FlujoTokenTelefono(codigo, Date.now()).autenticar(codigoIngresado);
-```
-
-## Dónde encaja en la arquitectura hexagonal
-
-Aquí el patrón Adapter y el "adaptador" de la arquitectura hexagonal son,
-literalmente, la misma idea: `EnviadorNotificaciones` es el **puerto**
-(vive en `application/notificaciones`) y `AdaptadorSmsGlobal` /
-`AdaptadorSmsLocal` son los **adaptadores** de infraestructura
-(`infrastructure/notificaciones`) que lo conectan con el mundo externo.
-
-## Cosas a tener en cuenta del Adapter
-
-| Punto flojo | Qué se hizo aquí |
-|---|---|
-| Puede volverse una capa extra innecesaria si solo hay un proveedor | Aquí hay dos proveedores reales con formas distintas, así que se justifica |
-| Un adaptador mal hecho puede esconder errores del SDK real | Cada adaptador traduce explícitamente tanto el éxito como el fallo, no solo el camino feliz |
-
-## Pruebas / Testing
-
-**`tests/adaptadores-notificaciones.test.ts`**:
-![alt text](/docs/img/image-2.png)
-
-| Prueba | Qué revisa |
-|---|---|
-| Adaptador SMS Global | Traduce el éxito y el fallo del SDK a `ResultadoEnvio` |
-| Adaptador SMS Local | Traduce el éxito y la excepción del SDK a `ResultadoEnvio` |
-| Uso intercambiable | Los dos adaptadores se usan igual desde el mismo código |
-
-Estado actual: **27 pruebas, todas en verde** (24 de las etapas anteriores + 3 nuevas).
-
-## UML del flujo (Adapter)
 
 ```mermaid
 classDiagram
@@ -695,798 +190,200 @@ classDiagram
         +enviar(destino, mensaje) ResultadoEnvio
     }
     class SmsGlobalSDK {
-        +sendMessage(to, body) status, id
+        +sendMessage(to, body)
     }
     class SmsLocalSDK {
-        +enviarTexto(opciones) string
+        +enviarTexto(opciones)
     }
-    class AdaptadorSmsGlobal {
-        -sdk: SmsGlobalSDK
-        +enviar(destino, mensaje) ResultadoEnvio
-    }
-    class AdaptadorSmsLocal {
-        -sdk: SmsLocalSDK
-        +enviar(destino, mensaje) ResultadoEnvio
-    }
-
     EnviadorNotificaciones <|.. AdaptadorSmsGlobal
     EnviadorNotificaciones <|.. AdaptadorSmsLocal
     AdaptadorSmsGlobal ..> SmsGlobalSDK : adapta
     AdaptadorSmsLocal ..> SmsLocalSDK : adapta
 ```
 
-```mermaid
-sequenceDiagram
-    participant C as Cliente
-    participant AG as AdaptadorSmsGlobal
-    participant SG as SmsGlobalSDK
-    participant AL as AdaptadorSmsLocal
-    participant SL as SmsLocalSDK
+**Archivos:** `application/notificaciones/enviador-notificaciones.ts`, `infrastructure/notificaciones/*`
 
-    C->>AG: enviar(destino, mensaje)
-    AG->>SG: sendMessage(destino, mensaje)
-    SG-->>AG: { status, id }
-    AG-->>C: ResultadoEnvio { enviado, proveedor, referencia }
+**Pruebas:** `tests/adaptadores-notificaciones.test.ts`
 
-    C->>AL: enviar(destino, mensaje)
-    AL->>SL: enviarTexto({ numero, texto })
-    SL-->>AL: referencia (o excepción si falla)
-    AL-->>C: ResultadoEnvio { enviado, proveedor, referencia }
-```
-
-El cliente llama a `enviar()` igual en los dos casos; cada adaptador es el
-único que sabe cómo hablarle a su SDK real.
-
-## Archivos añadidos en esta etapa
-
-```
-src/application/notificaciones/enviador-notificaciones.ts   # Target (puerto)
-src/infrastructure/notificaciones/sms-global-sdk.ts           # Adaptee 1
-src/infrastructure/notificaciones/sms-local-sdk.ts            # Adaptee 2
-src/infrastructure/notificaciones/adaptador-sms-global.ts     # Adapter 1
-src/infrastructure/notificaciones/adaptador-sms-local.ts      # Adapter 2
-tests/adaptadores-notificaciones.test.ts                     # Pruebas del Adapter
-```
+![Pruebas Adapter](docs/img/image-2.png)
 
 ---
 
-# ETAPA 6 — Patrón Bridge (tipo de notificación + canal)
+## ETAPA 6 — Bridge
 
-En esta etapa se sumaron los **tipos de notificación** (simple, urgente) y se
-le aplicó el patrón **Bridge**, reutilizando el mismo puerto
-`EnviadorNotificaciones` de la ETAPA 5.
+**Qué es:** separa "qué se hace" de "cómo se hace", para que cada parte cambie sin afectar a la otra.
 
-## En una frase
+**En el proyecto:** el tipo de aviso (simple o urgente) va separado del canal
+por donde se envía (SMS o correo). Cualquier tipo funciona con cualquier
+canal, sin crear una clase por cada combinación. Se usa para avisar de cada
+inicio de sesión.
 
-Hay dos cosas que pueden variar por separado: **qué tipo** de notificación es
-(simple, urgente) y **por dónde** se envía (SMS de un proveedor u otro,
-correo). El Bridge separa esas dos jerarquías para que cada una crezca sin
-enredar a la otra.
-
-## ¿Qué es el patrón Bridge? (contado fácil)
-
-Imagina un control remoto y un televisor. Hay controles simples y controles
-con más botones; hay televisores de distintas marcas. Si cada control
-tuviera que programarse distinto para cada marca de televisor, terminarías
-con un control por cada combinación. El Bridge separa "qué botones tiene el
-control" de "cómo le habla a un televisor en concreto": el control usa una
-conexión genérica y cualquier televisor que la entienda le sirve.
-
-En este proyecto:
-
-- La **abstracción** es el tipo de notificación (`Notificacion`): define
-  *qué* hace especial a cada tipo (una urgente reintenta, una simple no).
-- La **implementación** es el canal (`EnviadorNotificaciones`): define *cómo*
-  viaja el mensaje de verdad.
-- Cada notificación **guarda una referencia a un canal** en vez de heredar de
-  él, así que cualquier tipo de notificación funciona con cualquier canal.
-
-## Los papeles del patrón en el proyecto
-
-| Papel en el patrón | En el código |
+| Papel | Clase |
 |---|---|
-| Implementación (interfaz) | `EnviadorNotificaciones` (la misma de la ETAPA 5) |
-| Implementaciones concretas | `AdaptadorSmsGlobal`, `AdaptadorSmsLocal`, `EnviadorCorreo` |
-| Abstracción | `Notificacion` |
-| Abstracciones refinadas | `NotificacionSimple`, `NotificacionUrgente` |
-
-`NotificacionUrgente` le agrega el prefijo `"URGENTE: "` al mensaje y
-reintenta una vez si el primer envío falla; `NotificacionSimple` no le
-cambia nada al mensaje. Ninguna de las dos sabe si, por debajo, el canal es
-un SMS o un correo.
-
-## ¿Cómo incide (afecta) este patrón en el código?
-
-### Sin Bridge
-
-Si se mezclara el tipo de notificación con el canal en una sola jerarquía de
-clases, cada combinación nueva sería una clase nueva:
-`NotificacionUrgentePorSmsGlobal`, `NotificacionSimplePorCorreo`,
-`NotificacionUrgentePorCorreo`... Con 2 tipos y 3 canales ya son 6 clases, y
-crece multiplicando.
-
-### Con Bridge
-
-- **Las dos jerarquías crecen por separado**: un canal nuevo (por ejemplo,
-  notificación push) no toca ningún tipo de notificación, y un tipo nuevo
-  (por ejemplo, "programada") no toca ningún canal.
-- **No hay explosión de clases**: 2 tipos y 3 canales siguen siendo solo 5
-  clases, combinables en tiempo de ejecución.
-- **Reutiliza directamente el Adapter de la ETAPA 5**: los adaptadores de SMS
-  ya cumplen `EnviadorNotificaciones`, así que sirven tal cual como
-  implementación del Bridge.
-
-### Conexión con las etapas anteriores
-
-Tras emitir la credencial digital (ETAPA 4), se avisa con una notificación
-urgente por SMS y una simple por correo, usando el mismo mensaje:
-
-```ts
-new NotificacionUrgente(new AdaptadorSmsGlobal()).enviar(telefono, 'tu credencial ya está lista');
-new NotificacionSimple(new EnviadorCorreo()).enviar(correo, 'tu credencial ya está lista');
-```
-
-## Dónde encaja en la arquitectura hexagonal
-
-`Notificacion` y sus subclases viven en `application/notificaciones`: son
-reglas de la aplicación (qué hacer con un aviso), no dependen de ningún canal
-concreto. Los canales reales (`infrastructure/notificaciones`) son
-intercambiables porque todos cumplen el mismo puerto.
-
-## Cosas a tener en cuenta del Bridge
-
-| Punto flojo | Qué se hizo aquí |
-|---|---|
-| Puede ser exagerado si solo hubiera un tipo de notificación y un canal | Aquí hay dos tipos y tres canales reales, con más previstos (push, etc.) |
-| Se puede confundir con Adapter porque ambos "envuelven" algo | El Adapter traduce una interfaz incompatible; el Bridge separa dos jerarquías que varían juntas a propósito |
-
-## Pruebas / Testing
-
-**`tests/notificacion-bridge.test.ts`**:
-![alt text](/docs/img/image-3.png)
-
-| Prueba | Qué revisa |
-|---|---|
-| Independencia del canal | La misma `NotificacionSimple` funciona con SMS y con correo |
-| Prefijo urgente | `NotificacionUrgente` antepone `"URGENTE: "` al mensaje |
-| Reintento urgente | Si el canal falla una vez, `NotificacionUrgente` lo intenta de nuevo |
-
-Estado actual: **30 pruebas, todas en verde** (27 de las etapas anteriores + 3 nuevas).
-
-## UML del flujo (Bridge)
+| Abstracción | `Notificacion` → `NotificacionSimple`, `NotificacionUrgente` |
+| Implementación | `EnviadorNotificaciones` → `AdaptadorSmsGlobal`, `AdaptadorSmsLocal`, `EnviadorCorreo` |
 
 ```mermaid
 classDiagram
-    class EnviadorNotificaciones {
-        <<interface>>
-        +enviar(destino, mensaje) ResultadoEnvio
-    }
-    class AdaptadorSmsGlobal
-    class AdaptadorSmsLocal
-    class EnviadorCorreo
-
     class Notificacion {
         <<abstract>>
         #canal: EnviadorNotificaciones
-        +enviar(destino, mensaje) ResultadoEnvio
+        +enviar(destino, mensaje)
     }
-    class NotificacionSimple {
-        +enviar(destino, mensaje) ResultadoEnvio
+    class EnviadorNotificaciones {
+        <<interface>>
     }
-    class NotificacionUrgente {
-        +enviar(destino, mensaje) ResultadoEnvio
-    }
-
-    EnviadorNotificaciones <|.. AdaptadorSmsGlobal
-    EnviadorNotificaciones <|.. AdaptadorSmsLocal
-    EnviadorNotificaciones <|.. EnviadorCorreo
-    Notificacion o-- EnviadorNotificaciones : canal
     Notificacion <|-- NotificacionSimple
     Notificacion <|-- NotificacionUrgente
+    Notificacion o-- EnviadorNotificaciones : canal
+    EnviadorNotificaciones <|.. AdaptadorSmsGlobal
+    EnviadorNotificaciones <|.. EnviadorCorreo
 ```
 
-```mermaid
-sequenceDiagram
-    participant C as Cliente
-    participant N as NotificacionUrgente
-    participant Canal as canal (EnviadorNotificaciones)
+**Archivos:** `application/notificaciones/notificacion*.ts`, `infrastructure/notificaciones/enviador-correo.ts`
 
-    C->>N: enviar(destino, mensaje)
-    N->>Canal: enviar(destino, "URGENTE: " + mensaje)
-    Canal-->>N: { enviado: false }
-    Note over N: el primer intento falló, se reintenta una vez
-    N->>Canal: enviar(destino, "URGENTE: " + mensaje)
-    Canal-->>N: { enviado: true }
-    N-->>C: { enviado: true }
-```
+**Pruebas:** `tests/notificacion-bridge.test.ts`
 
-El diagrama de clases muestra las dos jerarquías por separado (tipo de
-notificación arriba, canal abajo) unidas solo por la referencia `canal`;
-el de secuencia muestra por qué `NotificacionUrgente` necesita esa
-referencia: para reintentar sin saber qué canal hay detrás.
-
-## Archivos añadidos en esta etapa
-
-```
-src/application/notificaciones/notificacion.ts            # Abstracción
-src/application/notificaciones/notificacion-simple.ts      # Abstracción refinada
-src/application/notificaciones/notificacion-urgente.ts     # Abstracción refinada
-src/infrastructure/notificaciones/enviador-correo.ts        # Implementación concreta nueva
-tests/notificacion-bridge.test.ts                          # Pruebas del Bridge
-```
+![Pruebas Bridge](docs/img/image-3.png)
 
 ---
 
-# ETAPA 7 — Patrón Composite (catálogo de permisos)
+## ETAPA 7 — Composite
 
-En esta etapa se sumó un **catálogo de permisos en árbol** y se le aplicó el
-patrón **Composite**.
+**Qué es:** trata igual a un elemento suelto y a un grupo de elementos, como archivos y carpetas.
 
-## En una frase
+**En el proyecto:** un rol es un árbol de permisos. Puede tener grupos
+completos (`auditoria`) y permisos sueltos (`consultar-identidad`), y a los
+dos se les pregunta lo mismo: `contiene()` y `listar()`. El administrador arma
+los roles desde el panel.
 
-Un permiso puede ser algo suelto (`ver-auditoria`) o un grupo que junta varios
-permisos, incluso otros grupos (`auditoria` adentro de `permisos-administrador`).
-El Composite permite tratar a un permiso individual y a un grupo entero
-**exactamente de la misma forma**: ambos saben responder "¿me contienes a mí
-o a alguno de mis hijos?" y "lístate a ti mismo".
-
-## ¿Qué es el patrón Composite? (contado fácil)
-
-Piensa en las carpetas de un computador: una carpeta puede tener archivos
-sueltos o más carpetas adentro, y esas carpetas pueden tener más carpetas. Si
-preguntas "¿cuánto pesa esto?" no te importa si es un archivo o una carpeta
-con cien archivos dentro: la pregunta se responde igual, y por dentro cada
-carpeta se la pasa a sus hijos hasta llegar a los archivos sueltos.
-
-En código:
-
-1. Una interfaz común (`NodoPermiso`) define lo que puede hacer "cualquier
-   cosa parecida a un permiso": `contiene()` y `listar()`.
-2. La **hoja** (`PermisoSimple`) responde por sí misma.
-3. El **compuesto** (`GrupoPermisos`) no sabe nada de permisos: solo le
-   pregunta lo mismo a cada uno de sus hijos y junta las respuestas.
-
-## Los papeles del patrón en el proyecto
-
-| Papel en el patrón | En el código |
+| Papel | Clase |
 |---|---|
-| Componente (interfaz común) | `NodoPermiso` |
+| Componente | `NodoPermiso` |
 | Hoja | `PermisoSimple` |
 | Compuesto | `GrupoPermisos` |
-| Árbol ya armado | `catalogoPermisos` (ciudadano, administrador, entidad externa) |
-
-`catalogoPermisos.administrador` tiene tres niveles: el grupo
-`permisos-administrador` contiene a los grupos `identidad` y `auditoria` (que
-a su vez contienen permisos sueltos) y al permiso suelto `gestionar-roles`.
-
-## ¿Cómo incide (afecta) este patrón en el código?
-
-### Sin Composite
-
-Para saber si un rol tiene un permiso habría que recorrer a mano listas y
-sub-listas, con un `if` distinto según si el permiso viene solo o agrupado.
-Cada nivel nuevo de agrupación complicaría más esa revisión manual.
-
-### Con Composite
-
-- **Una sola operación (`contiene()`) sirve para cualquier profundidad**: no
-  importa si el permiso está suelto o a tres niveles de anidación.
-- **Agregar un grupo nuevo no cambia el código que ya consulta el catálogo**,
-  solo se arma el árbol con más `.agregar(...)`.
-- **`listar()` aplana todo el árbol a una lista plana de nombres**, útil para
-  mostrarla o guardarla, sin que quien la pide sepa cómo estaba organizada.
-
-### Conexión con las etapas anteriores
-
-El catálogo usa los mismos nombres de permisos que ya emite
-`DirectorCredenciales` (ETAPA 4: Builder) al construir una `CredencialDigital`,
-pero agrupados: por ejemplo, `ver-auditoria` es uno de los permisos que el
-Builder le da al administrador, y aquí vive dentro del grupo `auditoria`.
-
-## Dónde encaja en la arquitectura hexagonal
-
-`NodoPermiso`, `PermisoSimple` y `GrupoPermisos` viven en el **dominio**: son
-una regla de negocio pura (cómo se agrupan los permisos), sin depender de
-nada externo. El árbol ya armado (`catalogoPermisos`) vive en la
-**aplicación**, como una configuración concreta del sistema.
-
-## Cosas a tener en cuenta del Composite
-
-| Punto flojo | Qué se hizo aquí |
-|---|---|
-| Puede ser exagerado si los permisos nunca se agruparan | Aquí ya hay grupos reales (`identidad`, `auditoria`) y se esperan más |
-| Un árbol mal armado puede crecer sin control | El catálogo se arma en un solo archivo, fácil de revisar completo |
-
-## Pruebas / Testing
-
-**`tests/permisos-composite.test.ts`**:
-![alt text](/docs/img/image-4.png)
-
-| Prueba | Qué revisa |
-|---|---|
-| Hoja | `PermisoSimple` se busca y se lista a sí misma |
-| Composición | Un grupo agrupa hojas y otros grupos sin distinguirlos |
-| Catálogo real | Un permiso anidado dos niveles se encuentra igual que uno directo |
-
-Estado actual: **33 pruebas, todas en verde** (30 de las etapas anteriores + 3 nuevas).
-
-## UML del flujo (Composite)
+| Árboles | `catalogoPermisos` (fijo), `GestorRoles` (editable) |
 
 ```mermaid
 classDiagram
     class NodoPermiso {
         <<interface>>
-        +nombre: string
-        +contiene(permiso) boolean
-        +listar() string[]
-    }
-    class PermisoSimple {
-        +nombre: string
         +contiene(permiso) boolean
         +listar() string[]
     }
     class GrupoPermisos {
-        +nombre: string
-        -hijos: NodoPermiso[]
-        +agregar(nodo) GrupoPermisos
-        +contiene(permiso) boolean
-        +listar() string[]
+        +agregar(nodo)
     }
-
     NodoPermiso <|.. PermisoSimple
     NodoPermiso <|.. GrupoPermisos
     GrupoPermisos o-- NodoPermiso : hijos
 ```
 
-```mermaid
-sequenceDiagram
-    participant C as Cliente
-    participant Admin as GrupoPermisos("permisos-administrador")
-    participant Aud as GrupoPermisos("auditoria")
-    participant Hoja as PermisoSimple("ver-auditoria")
+**Archivos:** `domain/permisos/*`, `application/permisos/*`
 
-    C->>Admin: contiene("ver-auditoria")
-    Admin->>Aud: contiene("ver-auditoria")
-    Aud->>Hoja: contiene("ver-auditoria")
-    Hoja-->>Aud: true
-    Aud-->>Admin: true
-    Admin-->>C: true
-```
+**Pruebas:** `tests/permisos-composite.test.ts`
 
-El cliente hace una sola llamada en la raíz del árbol; cada compuesto se
-encarga de preguntarle a sus hijos sin que el cliente sepa cuántos niveles hay.
-
-## Archivos añadidos en esta etapa
-
-```
-src/domain/permisos/nodo-permiso.ts                 # Componente (interfaz)
-src/domain/permisos/permiso-simple.ts                # Hoja
-src/domain/permisos/grupo-permisos.ts                # Compuesto
-src/application/permisos/catalogo-permisos.ts        # Árbol de permisos del sistema
-tests/permisos-composite.test.ts                    # Pruebas del Composite
-```
+![Pruebas Composite](docs/img/image-4.png)
 
 ---
 
-# ETAPA 8 — Patrón Decorator (bitácora y límite de intentos)
+## ETAPA 8 — Decorator
 
-En esta etapa se sumó la **protección de la autenticación** (registro de
-intentos y bloqueo por fuerza bruta) y se le aplicó el patrón **Decorator**,
-envolviendo los flujos de la ETAPA 3 sin modificarlos.
+**Qué es:** agrega funciones a un objeto envolviéndolo en capas, sin tocar su código.
 
-## En una frase
+**En el proyecto:** los flujos de autenticación se envuelven con capas que
+agregan bitácora, auditoría permanente y bloqueo tras 3 fallos. El flujo de
+adentro no se entera:
+`Bitacora(Auditoria(LimiteIntentos(flujo)))`.
 
-`AutenticadorConBitacora` y `AutenticadorConLimiteIntentos` **envuelven** a
-cualquier `FlujoAutenticacion` (contraseña, token o rostro) para agregarle
-comportamiento extra —registrar el intento, bloquear tras varios fallos—
-sin tocar ni una línea de `FlujoAutenticacion` ni de sus subclases.
-
-## ¿Qué es el patrón Decorator? (contado fácil)
-
-Piensa en un café: el café solo ya es café, pero le puedes poner una capa de
-leche, y encima otra de canela. Cada capa envuelve a la anterior y le agrega
-algo, sin que el café de adentro se entere ni tenga que cambiar de receta.
-Puedes poner las capas en el orden que quieras, o no ponerlas.
-
-En código:
-
-1. Una interfaz común (`Autenticador`) dice lo mínimo que hace falta:
-   `autenticar()`.
-2. El decorador base (`AutenticadorDecorador`) envuelve a otro `Autenticador`
-   y, si no se le agrega nada, simplemente le pasa el trabajo.
-3. Cada decorador concreto hace su parte y delega el resto al que envuelve.
-
-## Los papeles del patrón en el proyecto
-
-| Papel en el patrón | En el código |
+| Papel | Clase |
 |---|---|
-| Componente (interfaz común) | `Autenticador` |
-| Componente concreto | Cualquier `FlujoAutenticacion` (ETAPA 3): `FlujoContrasena`, `FlujoTokenTelefono`, `FlujoRostro` |
+| Componente | `Autenticador` (lo cumple cualquier `FlujoAutenticacion`) |
 | Decorador base | `AutenticadorDecorador` |
-| Decoradores concretos | `AutenticadorConBitacora`, `AutenticadorConLimiteIntentos` |
-
-`FlujoAutenticacion` ya tenía el método `autenticar()` desde la ETAPA 3;
-como la interfaz `Autenticador` solo pide esa misma forma, cualquier flujo
-existente encaja como componente del Decorator **sin cambiarle nada**.
-
-## ¿Cómo incide (afecta) este patrón en el código?
-
-### Sin Decorator
-
-La bitácora y el límite de intentos tendrían que escribirse dentro de
-`FlujoAutenticacion` o de cada flujo concreto, mezclando la regla de "cómo se
-autentica" con la de "cómo se audita" y "cuándo se bloquea". Si mañana no se
-quisiera el límite de intentos en algún caso, habría que agregar banderas o
-condicionales para desactivarlo.
-
-### Con Decorator
-
-- **Los flujos de la ETAPA 3 no se tocan**: siguen siendo solo "cómo se
-  verifica un factor".
-- **Cada comportamiento extra vive en su propio archivo**, y se agrega
-  envolviendo, no heredando ni modificando.
-- **Se combinan en el orden que haga falta**:
-  `new AutenticadorConBitacora(new AutenticadorConLimiteIntentos(flujo))`.
-  Se puede usar uno solo, los dos, o ninguno.
-
-### Conexión con las etapas anteriores
-
-El decorador envuelve directamente un creador de la ETAPA 3 (Factory Method),
-sin saber qué factor hay detrás:
-
-```ts
-const protegido = new AutenticadorConBitacora(
-  new AutenticadorConLimiteIntentos(new FlujoContrasena('clave-del-ciudadano'), 2),
-);
-```
-
-## Dónde encaja en la arquitectura hexagonal
-
-`Autenticador`, `AutenticadorDecorador` y los decoradores concretos viven en
-`application/auth`, junto a los flujos que envuelven: son reglas de la
-aplicación (auditoría, control de acceso), no dependen de infraestructura.
-
-## Cosas a tener en cuenta del Decorator
-
-| Punto flojo | Qué se hizo aquí |
-|---|---|
-| Envolver de más puede ocultar qué autenticador hay realmente adentro | Cada decorador delega explícitamente con `super.autenticar()`, fácil de seguir |
-| El bloqueo de esta etapa no tiene forma de "desbloquear" | Se dejó simple a propósito; un contador con expiración sería el siguiente paso natural |
-
-## Pruebas / Testing
-
-**`tests/autenticador-decoradores.test.ts`**:
-![alt text](/docs/img/image-5.png)
-
-| Prueba | Qué revisa |
-|---|---|
-| Bitácora | Registra cada intento sin cambiar el resultado del autenticador original |
-| Límite de intentos | Bloquea tras varios fallos seguidos, incluso si luego llega la clave correcta |
-| Combinación | Los decoradores se pueden apilar sin que el flujo original se entere |
-
-Estado actual: **36 pruebas, todas en verde** (33 de las etapas anteriores + 3 nuevas).
-
-## UML del flujo (Decorator)
+| Decoradores | `AutenticadorConBitacora`, `AutenticadorConLimiteIntentos`, `AutenticadorConAuditoria` |
 
 ```mermaid
 classDiagram
     class Autenticador {
         <<interface>>
-        +autenticar(valorPresentado) ResultadoAutenticacion
-    }
-    class FlujoAutenticacion {
-        <<abstract>>
-        +autenticar(valorPresentado) ResultadoAutenticacion
+        +autenticar(valor) ResultadoAutenticacion
     }
     class AutenticadorDecorador {
         <<abstract>>
         #interno: Autenticador
-        +autenticar(valorPresentado) ResultadoAutenticacion
     }
-    class AutenticadorConBitacora {
-        +bitacora: string[]
-        +autenticar(valorPresentado) ResultadoAutenticacion
-    }
-    class AutenticadorConLimiteIntentos {
-        -fallosSeguidos: number
-        +autenticar(valorPresentado) ResultadoAutenticacion
-    }
-
     Autenticador <|.. FlujoAutenticacion
     Autenticador <|.. AutenticadorDecorador
     AutenticadorDecorador o-- Autenticador : interno
     AutenticadorDecorador <|-- AutenticadorConBitacora
     AutenticadorDecorador <|-- AutenticadorConLimiteIntentos
+    AutenticadorDecorador <|-- AutenticadorConAuditoria
 ```
 
-```mermaid
-sequenceDiagram
-    participant C as Cliente
-    participant Bit as AutenticadorConBitacora
-    participant Lim as AutenticadorConLimiteIntentos
-    participant F as FlujoContrasena
+**Archivos:** `application/auth/autenticador*.ts`
 
-    C->>Bit: autenticar("clave-mala")
-    Bit->>Lim: autenticar("clave-mala")
-    Lim->>F: autenticar("clave-mala")
-    F-->>Lim: { autenticado: false }
-    Note over Lim: primer fallo, todavía no bloquea
-    Lim-->>Bit: { autenticado: false }
-    Bit-->>C: { autenticado: false }
-    Note over Bit: queda registrado en la bitácora
-```
+**Pruebas:** `tests/autenticador-decoradores.test.ts`
 
-Cada capa solo sabe de la capa que envuelve; `FlujoContrasena` nunca se entera
-de que existen la bitácora ni el límite de intentos.
-
-## Archivos añadidos en esta etapa
-
-```
-src/application/auth/autenticador.ts                     # Componente (interfaz)
-src/application/auth/autenticador-decorador.ts             # Decorador base
-src/application/auth/autenticador-con-bitacora.ts          # Decorador concreto
-src/application/auth/autenticador-con-limite-intentos.ts   # Decorador concreto
-tests/autenticador-decoradores.test.ts                    # Pruebas del Decorator
-```
+![Pruebas Decorator](docs/img/image-5.png)
 
 ---
 
-# ETAPA 9 — Patrón Flyweight (tipos de documento compartidos)
+## ETAPA 9 — Flyweight
 
-En esta etapa se sumaron los **tipos de documento de identidad** (cédula,
-pasaporte, tarjeta de identidad) y se le aplicó el patrón **Flyweight**.
+**Qué es:** ahorra memoria compartiendo un mismo objeto entre muchos que lo necesitan igual.
 
-## En una frase
+**En el proyecto:** miles de ciudadanos tienen cédula, pero "qué es una cédula
+y cómo se valida" es igual para todos. `FabricaTiposDocumento` crea cada tipo
+(CC, CE, PA, TI) una sola vez y lo comparte. Se usa al registrarse para
+validar el número.
 
-Miles de ciudadanos pueden tener cédula de ciudadanía, pero el dato de "qué
-es una cédula y cómo se valida" es el mismo para todos. En vez de crear ese
-dato una vez por cada ciudadano, el Flyweight lo crea **una sola vez por
-tipo** y lo comparte entre todos los que lo necesiten.
-
-## ¿Qué es el patrón Flyweight? (contado fácil)
-
-Piensa en las fichas de un juego de mesa: todas las fichas rojas son
-idénticas entre sí. No tiene sentido fabricar una ficha roja nueva cada vez
-que un jugador la necesita; se fabrica un molde una vez y de ahí se reparten
-fichas iguales a quien las pida.
-
-En código:
-
-1. El dato que **se repite igual para muchos objetos** (el molde) se separa
-   del dato que **es propio de cada uno**.
-2. Una fábrica guarda el molde ya hecho y, si alguien lo vuelve a pedir, le
-   entrega el mismo objeto en vez de fabricar uno nuevo.
-
-## Los papeles del patrón en el proyecto
-
-| Papel en el patrón | En el código |
+| Papel | Clase |
 |---|---|
-| Flyweight (dato compartido) | `TipoDocumento` |
-| Fábrica de flyweights | `FabricaTiposDocumento` |
-| Contexto (dato propio de cada uno) | `DocumentoIdentidad` (número, titular) |
-
-`TipoDocumento` guarda el código, el nombre y el formato de validación de un
-tipo de documento (eso es lo que se comparte). `DocumentoIdentidad` junta ese
-tipo compartido con el número y el titular, que sí son distintos para cada
-persona.
-
-## ¿Cómo incide (afecta) este patrón en el código?
-
-### Sin Flyweight
-
-Cada `DocumentoIdentidad` tendría que crear o copiar su propia información de
-"cómo valida una cédula", repitiendo el mismo dato miles de veces y gastando
-memoria sin necesidad.
-
-### Con Flyweight
-
-- **Un tipo de documento se crea una sola vez**, sin importar cuántos
-  ciudadanos lo tengan.
-- **`FabricaTiposDocumento.obtener('CC')` siempre devuelve la misma
-  instancia**: se puede comparar con `===` para confirmarlo.
-- **Agregar un tipo de documento nuevo no toca el código que ya usa los
-  existentes**, solo se agrega su definición en la fábrica.
-
-### Conexión con las etapas anteriores
-
-Nada impide usar el mismo `usuarioId` de una `CredencialDigital` (ETAPA 4)
-junto con su `DocumentoIdentidad`; son datos distintos del mismo ciudadano,
-cada uno resuelto por su propio patrón.
-
-## Dónde encaja en la arquitectura hexagonal
-
-`TipoDocumento` y `DocumentoIdentidad` viven en el **dominio**: son reglas de
-negocio puras (qué es un tipo de documento válido). `FabricaTiposDocumento`
-vive en la **aplicación**, porque controla *cómo* se crean y reutilizan esos
-objetos.
-
-## Cosas a tener en cuenta del Flyweight
-
-| Punto flojo | Qué se hizo aquí |
-|---|---|
-| Solo vale la pena si hay muchos objetos repitiendo el mismo dato | Aquí hay potencialmente miles de ciudadanos por cada tipo de documento |
-| La caché de la fábrica vive para siempre en memoria | Son solo 4 tipos fijos, no crece con la cantidad de ciudadanos |
-
-## Pruebas / Testing
-
-**`tests/tipos-documento-flyweight.test.ts`**:
-
-```bash
-npx jest tipos-documento-flyweight
-```
-
-![alt text](/docs/img/image-6.png)
-
-| Prueba | Qué revisa |
-|---|---|
-| Misma instancia | `FabricaTiposDocumento.obtener('CC')` devuelve siempre el mismo objeto |
-| Validación propia | Cada tipo valida su propio formato |
-| Beneficio real | 50 documentos del mismo tipo no crean 50 instancias, sino 1 |
-
-Estado actual: **39 pruebas, todas en verde** (36 de las etapas anteriores + 3 nuevas).
-
-## UML del flujo (Flyweight)
+| Flyweight (compartido) | `TipoDocumento` |
+| Fábrica | `FabricaTiposDocumento` |
+| Contexto (propio de cada persona) | `DocumentoIdentidad` |
 
 ```mermaid
 classDiagram
     class TipoDocumento {
-        +codigo: string
-        +nombre: string
+        +codigo
+        +nombre
         +validar(numero) boolean
     }
     class FabricaTiposDocumento {
-        -instancias: Map~string, TipoDocumento~
         +obtener(codigo) TipoDocumento
-        +cantidadCreados() number
     }
     class DocumentoIdentidad {
-        +tipo: TipoDocumento
-        +numero: string
-        +titular: string
+        +numero
+        +titular
         +esValido() boolean
     }
-
     FabricaTiposDocumento ..> TipoDocumento : crea y reutiliza
     DocumentoIdentidad --> TipoDocumento : comparte
 ```
 
-```mermaid
-sequenceDiagram
-    participant C as Cliente
-    participant F as FabricaTiposDocumento
-    participant T as TipoDocumento("CC")
+**Archivos:** `domain/documentos/*`, `application/documentos/fabrica-tipos-documento.ts`
 
-    C->>F: obtener("CC")
-    F->>F: ¿ya existe "CC" en la caché?
-    F->>T: new TipoDocumento(...)
-    F-->>C: instancia de "CC"
+**Pruebas:** `tests/tipos-documento-flyweight.test.ts`
 
-    C->>F: obtener("CC") (para otro ciudadano)
-    F->>F: ¿ya existe "CC" en la caché?
-    F-->>C: la misma instancia de antes
-```
-
-La segunda llamada no crea nada nuevo: la fábrica ya tenía el molde de "CC"
-guardado y lo entrega tal cual.
-
-## Archivos añadidos en esta etapa
-
-```
-src/domain/documentos/tipo-documento.ts               # Flyweight
-src/domain/documentos/documento-identidad.ts            # Contexto
-src/application/documentos/fabrica-tipos-documento.ts   # Fábrica de flyweights
-tests/tipos-documento-flyweight.test.ts                # Pruebas del Flyweight
-```
+![Pruebas Flyweight](docs/img/image-6.png)
 
 ---
 
-# ETAPA 10 — Patrón Proxy (acceso protegido a la identidad)
+## ETAPA 10 — Proxy
 
-En esta etapa se sumó la **consulta de identidad de un ciudadano** y se le
-aplicó el patrón **Proxy**, reutilizando la `CredencialDigital` de la
-ETAPA 4 y los permisos de la ETAPA 7.
+**Qué es:** pone un intermediario delante de un objeto para controlar quién puede usarlo y cuándo.
 
-## En una frase
+**En el proyecto:** `RepositorioIdentidadProxy` se pone delante del
+repositorio real y solo deja pasar la consulta si la credencial tiene el
+permiso `consultar-identidad`. Lo usan el perfil de la persona y los
+servicios conectados cuando piden sus datos.
 
-`RepositorioIdentidadProxy` se hace pasar por el repositorio real de
-identidad, pero antes de dejar pasar la consulta revisa si quien pregunta
-tiene el permiso necesario. Si no lo tiene, nunca llega a tocar el
-repositorio real.
-
-## ¿Qué es el patrón Proxy? (contado fácil)
-
-Piensa en la recepción de un edificio de oficinas: no entras directo a la
-oficina que buscas, primero pasas por recepción, que revisa si tienes cita o
-permiso para subir. La recepción se parece a la oficina de cara a quien
-llega (ambas te "dejan entrar"), pero controla el acceso antes de que
-llegues a la oficina real.
-
-En código:
-
-1. El **sujeto real** (`RepositorioIdentidadMemoria`) es el que de verdad
-   tiene los datos.
-2. El **proxy** (`RepositorioIdentidadProxy`) implementa la misma interfaz
-   que el sujeto real.
-3. Antes de delegarle el trabajo al sujeto real, el proxy decide si lo deja
-   pasar o no.
-
-## Los papeles del patrón en el proyecto
-
-| Papel en el patrón | En el código |
+| Papel | Clase |
 |---|---|
-| Sujeto (interfaz común) | `RepositorioIdentidad` |
-| Sujeto real | `RepositorioIdentidadMemoria` |
+| Sujeto | `RepositorioIdentidad` |
+| Sujetos reales | `RepositorioIdentidadMemoria`, `RepositorioUsuariosArchivo` |
 | Proxy | `RepositorioIdentidadProxy` |
-
-El proxy recibe el repositorio real y una `CredencialDigital`; antes de
-llamar a `real.obtener()`, revisa si `credencial.permisos` incluye
-`'consultar-identidad'`. Si no lo incluye, lanza un error sin haber tocado
-el repositorio real.
-
-## ¿Cómo incide (afecta) este patrón en el código?
-
-### Sin Proxy
-
-El propio `RepositorioIdentidadMemoria` (o cada módulo que lo llame) tendría
-que revisar los permisos antes de responder, mezclando "dónde viven los
-datos" con "quién puede verlos".
-
-### Con Proxy
-
-- **El repositorio real no sabe nada de permisos**: solo guarda y entrega
-  datos.
-- **El control de acceso vive en un solo lugar**, reutilizable con
-  cualquier otro repositorio que cumpla la misma interfaz.
-- **Quien usa el proxy no nota la diferencia**: lo llama exactamente igual
-  que llamaría al repositorio real.
-
-### Conexión con las etapas anteriores
-
-El proxy se arma con la credencial que ya emitió el Builder (ETAPA 4):
-
-```ts
-const identidades = new RepositorioIdentidadProxy(new RepositorioIdentidadMemoria(), credencial);
-identidades.obtener('ciudadano-001');
-```
-
-Si la credencial no trae el permiso `'consultar-identidad'` (por ejemplo,
-porque el catálogo de la ETAPA 7 nunca se lo dio a ese rol), el proxy corta
-el acceso ahí mismo.
-
-## Dónde encaja en la arquitectura hexagonal
-
-`RepositorioIdentidad` (el puerto) vive en el **dominio**.
-`RepositorioIdentidadMemoria` (el adaptador que de verdad guarda los datos)
-vive en la **infraestructura**. `RepositorioIdentidadProxy` vive en la
-**aplicación**, porque la regla "quién puede consultar" es una decisión de
-negocio, no de almacenamiento.
-
-## Cosas a tener en cuenta del Proxy
-
-| Punto flojo | Qué se hizo aquí |
-|---|---|
-| Se puede confundir con Decorator porque ambos envuelven un objeto | El Decorator siempre delega y agrega comportamiento; este Proxy puede **no delegar nunca** si no hay permiso |
-| Un solo permiso fijo puede ser poco flexible | Se dejó configurable por constructor (`permisoRequerido`) para no atarlo a un solo caso |
-
-## Pruebas / Testing
-
-**`tests/repositorio-identidad-proxy.test.ts`**:
-
-```bash
-npx jest repositorio-identidad-proxy
-```
-
-![alt text](/docs/img/image-7.png)
-
-| Prueba | Qué revisa |
-|---|---|
-| Acceso permitido | El proxy deja pasar la consulta cuando la credencial tiene el permiso |
-| Acceso bloqueado | El proxy no llega a llamar al repositorio real si falta el permiso |
-| Misma interfaz | El proxy se puede usar en cualquier lugar que espere un `RepositorioIdentidad` |
-
-Estado actual: **42 pruebas, todas en verde** (39 de las etapas anteriores + 3 nuevas).
-
-## UML del flujo (Proxy)
 
 ```mermaid
 classDiagram
@@ -1494,227 +391,178 @@ classDiagram
         <<interface>>
         +obtener(usuarioId) DatosIdentidad
     }
-    class RepositorioIdentidadMemoria {
-        +obtener(usuarioId) DatosIdentidad
-    }
     class RepositorioIdentidadProxy {
         -real: RepositorioIdentidad
         -credencial: CredencialDigital
-        +obtener(usuarioId) DatosIdentidad
     }
-    class CredencialDigital {
-        +permisos: string[]
-    }
-
-    RepositorioIdentidad <|.. RepositorioIdentidadMemoria
+    RepositorioIdentidad <|.. RepositorioUsuariosArchivo
     RepositorioIdentidad <|.. RepositorioIdentidadProxy
     RepositorioIdentidadProxy --> RepositorioIdentidad : real
-    RepositorioIdentidadProxy ..> CredencialDigital : consulta permisos
 ```
 
-```mermaid
-sequenceDiagram
-    participant C as Cliente
-    participant P as RepositorioIdentidadProxy
-    participant R as RepositorioIdentidadMemoria
+**Archivos:** `domain/identidad/repositorio-identidad.ts`, `application/identidad/repositorio-identidad-proxy.ts`, `infrastructure/persistencia/repositorio-usuarios-archivo.ts`
 
-    C->>P: obtener("ciudadano-001")
-    P->>P: ¿la credencial tiene "consultar-identidad"?
-    alt tiene el permiso
-        P->>R: obtener("ciudadano-001")
-        R-->>P: DatosIdentidad
-        P-->>C: DatosIdentidad
-    else no lo tiene
-        P-->>C: error "Acceso denegado"
-    end
-```
+**Pruebas:** `tests/repositorio-identidad-proxy.test.ts`
 
-El repositorio real (`R`) ni se entera cuando el acceso se bloquea: el proxy
-corta el camino antes de llegar a él.
-
-## Archivos añadidos en esta etapa
-
-```
-src/domain/identidad/repositorio-identidad.ts                    # Sujeto (interfaz)
-src/infrastructure/identidad/repositorio-identidad-memoria.ts      # Sujeto real
-src/application/identidad/repositorio-identidad-proxy.ts           # Proxy
-tests/repositorio-identidad-proxy.test.ts                         # Pruebas del Proxy
-```
+![Pruebas Proxy](docs/img/image-7.png)
 
 ---
 
-# ETAPA 11 — Integración gubernamental, seguridad y panel de administración
+## ETAPA 11 — Iniciar sesión con SGID, seguridad y administración
 
-En esta etapa se completaron los cuatro requisitos del proyecto con una
-aplicación web multiusuario. **No se cambió ninguna clase de los nueve
-patrones:** todo lo nuevo se construyó *usándolos* o *extendiéndolos* de la
-forma que cada patrón permite (un creador más, un decorador más, un director
-más, un sujeto real más).
+En esta etapa se completó el sistema **sin cambiar las clases de los
+patrones**: todo lo nuevo los usa o los extiende (un creador, un decorador y
+un director más).
 
-## En una frase
+**Lo que se agregó:**
 
-SGID es el lugar donde el ciudadano inicia sesión: se registra una vez, se
-autentica con tres factores y los servicios del Estado lo usan como su método
-de autenticación ("Iniciar sesión con SGID"). El administrador gestiona roles,
-permisos, usuarios y servicios conectados desde un panel, y todo queda
-cifrado, firmado y auditado.
+- Registro e inicio de sesión de varias personas: cada una elige dos de sus tres factores, en el orden que quiera.
+- Panel de administración: roles y permisos, usuarios, servicios conectados y auditoría.
+- "Iniciar sesión con SGID" para los servicios del Estado, con un servicio de prueba (una alcaldía ficticia).
 
-## Cómo se reutilizan los patrones
+### Cómo un servicio usa SGID
 
-| Patrón | Pieza nueva | Cómo se usó, sin tocar la clase original |
-|---|---|---|
-| Singleton | `ConfigManager` | Suma dos valores: `DATOS_CLAVE` (cifrado) y `SGID_DATOS_DIR`. El `JWT_SECRET` que ya tenía ahora firma los tokens. |
-| Factory Method | `FlujoContrasenaSegura` + `FactorContrasenaSegura` | Un **creador nuevo** que compara contra un hash. Sirve para la contraseña de las personas y para el secreto de cada servicio conectado. `FlujoAutenticacion` no se tocó (principio abierto/cerrado). |
-| Builder | `DirectorCredencialesPorRol`, `ServicioIntegracion.canjearCodigo()` | Un **director nuevo** cuyas recetas salen del árbol de permisos. Para un servicio conectado, el builder arma una credencial que solo permite leer la identidad. |
-| Adapter | `ServicioInicioSesion` | El código SMS se envía por el primer proveedor que responda (`AdaptadorSmsGlobal`, si falla `AdaptadorSmsLocal`). |
-| Bridge | `ServicioInicioSesion` | Al entrar se avisa con `NotificacionUrgente` por SMS y `NotificacionSimple` por correo. |
-| Composite | `GestorRoles` | Cada rol se arma como un árbol de `GrupoPermisos` y `PermisoSimple`; `contiene()` decide los accesos y `listar()` da los permisos del token. |
-| Decorator | `AutenticadorConAuditoria` | Un **decorador nuevo** que escribe en la bitácora permanente. Se apila con los existentes: `Bitacora(Auditoria(LimiteIntentos(flujo)))`. |
-| Flyweight | `ServicioUsuarios`, `ServicioIntegracion` | `FabricaTiposDocumento` valida el documento al registrarse y da el nombre del tipo que recibe el servicio. |
-| Proxy | `ServicioIntegracion.datosDeUsuario()`, `/api/perfil` | El mismo `RepositorioIdentidadProxy`: el servicio solo lee la identidad si su token trae `consultar-identidad`. `RepositorioUsuariosArchivo` es un sujeto real nuevo. |
+Es el flujo estándar de OAuth2 *authorization code*, el mismo de "Iniciar sesión con Google":
 
-## Requisito 1 — Autenticación biométrica multifactor
+1. El administrador conecta el servicio y le entrega su `client_id` y `client_secret`.
+2. El servicio manda a la persona a `/autorizar`.
+3. La persona inicia sesión en SGID y acepta compartir sus datos.
+4. SGID la devuelve al servicio con un código de un solo uso.
+5. El servicio canjea el código por un token y lee la identidad.
 
-- Tres factores obligatorios, en cualquier orden: contraseña (algo que sabes),
-  código SMS (algo que tienes) y rostro (algo que eres).
-- Cada factor tiene **límite de 3 intentos** por persona; el código SMS es
-  aleatorio (`crypto.randomInt`), **de un solo uso** y vence a los 5 minutos.
-- La plantilla del rostro (128 números) se guarda cifrada, nunca una foto.
-
-## Requisito 2 — Gestión de permisos y roles
-
-- **El rol lo asigna el servidor**: el registro público siempre crea
-  ciudadanos; solo el primer registro (sin administrador todavía) crea al
-  administrador.
-- **Panel de administración** con cuatro secciones, cada una protegida por su
-  propio permiso: roles y permisos (`gestionar-roles`), usuarios
-  (`gestionar-usuarios`), servicios conectados (`gestionar-servicios`) y
-  auditoría (`ver-auditoria`, `exportar-auditoria`).
-- Catálogo fijo de permisos en grupos (`identidad`, `auditoria`,
-  `administracion`); el administrador arma roles nuevos con grupos completos o
-  permisos sueltos.
-- **Revocación inmediata:** cada petición revisa el permiso en el token *y*
-  en el rol que la persona tiene en ese momento. Quitar un permiso o bajar
-  un rol corta el acceso aunque el token siga vigente.
-- Para no quedarse sin administrador: nadie cambia su propio rol y el rol
-  `administrador` no puede perder el permiso `gestionar-roles`.
-
-## Requisito 3 — Integración con servicios gubernamentales
-
-Los servicios del Estado **no tienen usuarios propios**: se conectan a SGID y
-le delegan el inicio de sesión. Es el flujo estándar de OAuth2 *authorization
-code*, el mismo que usa "Iniciar sesión con Google":
-
-1. El administrador conecta el servicio (nombre y URL de retorno) y le entrega
-   su `client_id` y `client_secret`.
-2. El servicio manda a la persona a `GET /autorizar?client_id=…&redirect_uri=…&state=…`.
-3. La persona inicia sesión en SGID con sus tres factores y acepta compartir
-   sus datos con ese servicio.
-4. SGID la devuelve a la URL de retorno con un **código de un solo uso**
-   (vence en 5 minutos).
-5. El servidor del servicio canjea el código por un token y lee la identidad.
-
-| Método | Ruta | Para qué |
-|---|---|---|
-| `GET` | `/autorizar` | Página de SGID donde la persona inicia sesión y da su consentimiento |
-| `POST` | `/api/gov/v1/oauth/token` | `grant_type=authorization_code`, `code`, `redirect_uri`, `client_id`, `client_secret` → token Bearer |
-| `GET` | `/api/gov/v1/usuario` | Con el token: nombre, tipo y número de documento, y los factores con los que se verificó |
-
-- La URL de retorno debe ser exactamente la registrada; `state` vuelve igual
-  para que el servicio compruebe que la respuesta es suya.
-- El token que recibe un servicio solo sirve para leer la identidad: no
-  funciona como sesión dentro de SGID ni en el panel de administración.
-- Desconectar el servicio corta su acceso al instante, también con tokens ya entregados.
-- Para la demo hay un servicio de prueba en `/servicio-demo.html` (una
-  alcaldía ficticia). En un servicio real, el canje del código se hace en su
-  servidor, nunca en el navegador.
-
-```bash
-# Paso 5, desde el servidor del servicio (cambia los valores)
-curl -X POST http://localhost:3000/api/gov/v1/oauth/token \
-  -H "Content-Type: application/json" \
-  -d '{"grant_type":"authorization_code","code":"…","redirect_uri":"https://servicio.gov.co/retorno","client_id":"gov-…","client_secret":"…"}'
-
-curl http://localhost:3000/api/gov/v1/usuario -H "Authorization: Bearer <access_token>"
-```
+| Ruta | Para qué |
+|---|---|
+| `GET /autorizar?client_id&redirect_uri&state` | La persona inicia sesión y da su consentimiento |
+| `POST /api/gov/v1/oauth/token` | El servicio canjea el código por un token |
+| `GET /api/gov/v1/usuario` | El servicio lee nombre, documento y factores verificados |
 
 ```mermaid
 sequenceDiagram
     participant P as Persona
     participant S as Servicio del Estado
-    participant SGID as SGID
-    participant Px as RepositorioIdentidadProxy
-
-    P->>S: "Iniciar sesión con SGID"
-    S->>SGID: /autorizar?client_id&redirect_uri&state
-    P->>SGID: contraseña + código SMS + rostro
-    P->>SGID: Permitir
-    SGID-->>S: redirect_uri?code&state
-    S->>SGID: POST /oauth/token (code + client_secret)
-    Note over SGID: secreto con límite de intentos y auditoría (Decorator)<br/>credencial de solo lectura (Builder)
-    SGID-->>S: access_token
-    S->>SGID: GET /usuario (Bearer)
-    SGID->>Px: obtener(usuario)
-    Px-->>SGID: identidad (si el token trae consultar-identidad)
-    SGID-->>S: nombre, documento, factores
+    participant SGID
+    P->>S: Iniciar sesión con SGID
+    S->>SGID: /autorizar
+    P->>SGID: 2 factores + Permitir
+    SGID-->>S: código
+    S->>SGID: código + client_secret
+    SGID-->>S: token
+    S->>SGID: GET /usuario
+    SGID-->>S: identidad verificada
 ```
 
-## Requisito 4 — Estándares de seguridad
+### Seguridad
 
-| Control | Cómo se implementó | Dónde |
-|---|---|---|
-| Contraseñas y secretos de cliente | Hash **scrypt** con sal aleatoria; comparación en tiempo constante | `infrastructure/seguridad/criptografia.ts` |
-| Cifrado de datos sensibles en reposo | **AES-256-GCM** (cifrado autenticado: detecta alteraciones) para documento, teléfono, correo y rostro | `infrastructure/seguridad/criptografia.ts` |
-| Seudonimización | El identificador de cada persona es un HMAC del documento: se puede buscar por documento sin guardarlo en claro | `ServicioUsuarios.idPara()` |
-| Credencial firmada | **JWT HS256** con expiración y `jti`; cualquier cambio rompe la firma; revocación al cerrar sesión | `infrastructure/seguridad/tokens-jwt.ts` |
-| Trazabilidad / auditoría | Bitácora de solo agregar, **encadenada con SHA-256**: editar o borrar una línea rompe la cadena y se detecta | `infrastructure/auditoria/bitacora-auditoria.ts` |
-| Fuerza bruta | Límite de intentos en los tres factores y en el secreto de cada servicio; código SMS y código de autorización de un solo uso | Decorator `AutenticadorConLimiteIntentos` |
-| Menor privilegio | Rol asignado por el servidor; permisos revisados contra el rol actual en cada petición | `web/seguridad-http.ts` |
-| Minimización y enmascarado | El servicio recibe solo nombre, documento y factores, con consentimiento; el panel muestra `******4201` | `application/comun.ts` |
-| Encabezados HTTP | CSP, `X-Frame-Options`, `nosniff`, `Referrer-Policy`, `Cache-Control: no-store` en la API | `web/seguridad-http.ts` |
-| Secretos fuera del código | `.env` (ignorado por git); en producción el sistema **no arranca** con las claves de desarrollo | `ConfigManager` |
-| XSS en la interfaz | Todo lo que se pinta pasa por un escape de HTML | `public/js/util.js` |
+| Control | Cómo |
+|---|---|
+| Contraseñas y secretos | Hash scrypt con sal; nunca se guardan en claro |
+| Datos sensibles | Documento, teléfono, correo y rostro cifrados con AES-256-GCM |
+| Sesión | Token JWT firmado, con vencimiento y revocación al salir |
+| Fuerza bruta | 3 intentos por factor; códigos de un solo uso |
+| Permisos | El rol lo asigna el servidor y se revisa en cada petición |
+| Auditoría | Cada registro guarda el hash del anterior: si alguien edita el archivo, se detecta |
+| Servicios conectados | Su token solo sirve para leer la identidad y se corta al desconectarlos |
 
-Estos controles siguen las prácticas que piden marcos como **NIST SP 800-63B**
-(identidad digital), **ISO/IEC 27001** y, en Colombia, la **Ley 1581 de 2012**
-de protección de datos y el **MSPI** de MinTIC. El proyecto no está
-certificado frente a ellos; es una implementación académica de sus ideas.
+**Para un uso real faltaría:** HTTPS, un proveedor de SMS real (hoy hay un
+teléfono simulado), una base de datos en vez de archivos JSON y prueba de vida
+en el rostro.
 
-### Qué falta para un despliegue real
+---
 
-- **HTTPS** delante del servidor (un proxy inverso con TLS).
-- Un **SMS real**: el "teléfono simulado" solo existe fuera de producción
-  (`NODE_ENV=production` lo desactiva).
-- **Base de datos** en vez de archivos JSON (otro adaptador de los mismos puertos).
-- **Prueba de vida** en el rostro: hoy una foto frente a la cámara podría pasar.
-- Los bloqueos por intentos viven en memoria y se reinician con el servidor.
+## ETAPA 12 — Strategy
 
-## Archivos añadidos en esta etapa
+**Qué es:** define una familia de algoritmos intercambiables y deja que el objeto que los usa cambie de uno a otro sin saber cuál está usando.
 
+**En el proyecto:** la contraseña que se pide al registrarse depende del rol
+con el que queda la persona. El administrador controla todo el sistema, así
+que se le exige más (12 caracteres con mayúsculas, minúsculas, números y un
+símbolo); al ciudadano, 8 caracteres con letras y números. `ServicioUsuarios`
+pide la política con `politicaPara(rol)` y solo llama a `cumple()`. Agregar
+otra regla (por ejemplo, para un rol de auditor) es agregar una clase, sin
+tocar el registro. La pantalla de registro muestra la regla que toca.
+
+| Papel | Clase |
+|---|---|
+| Estrategia | `PoliticaContrasena` |
+| Estrategias concretas | `PoliticaContrasenaCiudadano`, `PoliticaContrasenaAdministrador` |
+| Contexto | `ServicioUsuarios` (al registrar) |
+
+```mermaid
+classDiagram
+    class PoliticaContrasena {
+        <<interface>>
+        +descripcion
+        +cumple(contrasena) boolean
+    }
+    class ServicioUsuarios {
+        +registrar(datos, comoAdministrador)
+    }
+    PoliticaContrasena <|.. PoliticaContrasenaCiudadano
+    PoliticaContrasena <|.. PoliticaContrasenaAdministrador
+    ServicioUsuarios ..> PoliticaContrasena : usa la del rol
 ```
-src/domain/usuarios/usuario.ts                              # Usuario y servicio conectado
-src/domain/permisos/rol.ts                                  # Rol editable
-src/application/comun.ts                                    # Error de negocio, enmascarado, tipo de documento
-src/application/auth/factor-contrasena-segura.ts            # Producto nuevo (Factory Method)
-src/application/auth/flujo-contrasena-segura.ts             # Creador nuevo (Factory Method)
-src/application/auth/autenticador-con-auditoria.ts          # Decorador nuevo
-src/application/auth/servicio-inicio-sesion.ts              # Iniciar sesión con los 3 factores
-src/application/credencial/director-credenciales-por-rol.ts # Director nuevo (Builder)
-src/application/permisos/gestor-roles.ts                    # Catálogo de permisos y roles como árbol Composite
-src/application/usuarios/servicio-usuarios.ts               # Registro y gestión de usuarios
-src/application/integracion/servicio-integracion.ts         # Iniciar sesión con SGID (OAuth2)
-src/infrastructure/seguridad/criptografia.ts                # scrypt, AES-256-GCM y huella HMAC
-src/infrastructure/seguridad/tokens-jwt.ts                  # JWT firmado
-src/infrastructure/persistencia/coleccion-json.ts           # Lista de objetos en un archivo JSON
-src/infrastructure/persistencia/repositorio-usuarios-archivo.ts # Usuarios cifrados (sujeto real del Proxy)
-src/infrastructure/auditoria/bitacora-auditoria.ts          # Bitácora encadenada
-src/web/app.ts, seguridad-http.ts, rutas/                   # Arma el sistema y expone la API REST
-public/js/                                                  # Interfaz: registro, sesión, perfil, panel
-public/servicio-demo.html, js/servicio-demo.js              # Servicio de prueba que usa "Iniciar sesión con SGID"
-.env.example                                                # Configuración de ejemplo
+
+**Diferencia con Bridge (ETAPA 6):** en Bridge varían los dos lados (tipo de
+aviso y canal). Aquí solo varía el algoritmo y quien lo usa es siempre el mismo.
+
+**Archivos:** `application/usuarios/politica-contrasena.ts`, `application/usuarios/servicio-usuarios.ts`
+
+**Cómo verlo:** en el primer arranque, el formulario pide la contraseña del
+administrador con la regla estricta; después, los ciudadanos se registran con
+la regla básica.
+
+---
+
+## ETAPA 13 — Template Method
+
+**Qué es:** una clase base fija los pasos de un procedimiento y su orden, y deja que las subclases redefinan solo algunos de esos pasos.
+
+**En el proyecto:** exportar la auditoría siempre sigue el mismo
+procedimiento, definido en `exportar()`:
+
+1. Dejar constancia de la descarga en la propia auditoría.
+2. Verificar la cadena de hashes.
+3. Escribir el encabezado, una fila por registro y el pie.
+4. Armar el nombre del archivo con la fecha.
+
+Los pasos 1, 2 y 4 son iguales siempre. El paso 3 lo escribe cada formato:
+`ExportadorJson` (como lo descargaba el panel) y `ExportadorCsv` (para abrir
+en Excel, protegido contra fórmulas). `separador()` y `pie()` son *ganchos*:
+tienen un valor por defecto y el formato los cambia solo si lo necesita.
+
+| Papel | Clase |
+|---|---|
+| Clase abstracta (método plantilla) | `ExportadorAuditoria.exportar()` |
+| Pasos abstractos | `encabezado()`, `fila()` |
+| Ganchos | `separador()`, `pie()` |
+| Clases concretas | `ExportadorJson`, `ExportadorCsv` |
+
+```mermaid
+classDiagram
+    class ExportadorAuditoria {
+        <<abstract>>
+        +exportar(bitacora, actor) ArchivoExportado
+        #encabezado(integridad)*
+        #fila(registro)*
+        #separador()
+        #pie(total)
+    }
+    ExportadorAuditoria <|-- ExportadorJson
+    ExportadorAuditoria <|-- ExportadorCsv
+    ExportadorAuditoria ..> BitacoraAuditoria : registra, verifica y lista
 ```
+
+**Diferencia con Strategy (ETAPA 12):** Strategy cambia el algoritmo completo
+usando otro objeto (composición). Template Method mantiene el algoritmo y
+cambia solo algunos pasos mediante subclases (herencia).
+
+**Archivos:** `application/auditoria/exportador-auditoria.ts`, `web/rutas/rutas-admin.ts`
+
+**Cómo verlo:** en el panel de administración, pestaña Auditoría, los botones
+**CSV** y **JSON** descargan la bitácora (`GET /api/admin/auditoria/exportar?formato=csv`).
 
 ---
 
 ## Autor
+
 Keanon Jeanpierre Angarita Olarte

@@ -7,11 +7,12 @@ export function encabezadosSeguridad(req: Request, res: Response, next: NextFunc
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Referrer-Policy', 'no-referrer');
-  // face-api.js y sus modelos vienen de jsDelivr; tfjs necesita 'unsafe-eval'.
+  // face-api.js y sus modelos vienen de jsDelivr; tfjs necesita 'unsafe-eval'. Las fuentes, de Google Fonts.
   res.setHeader(
     'Content-Security-Policy',
     "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-eval'; connect-src 'self' https://cdn.jsdelivr.net; " +
-      "img-src 'self' data:; style-src 'self' 'unsafe-inline'; object-src 'none'; frame-ancestors 'none'",
+      "img-src 'self' data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; " +
+      "object-src 'none'; frame-ancestors 'none'",
   );
   if (req.path.startsWith('/api/')) res.setHeader('Cache-Control', 'no-store');
   next();

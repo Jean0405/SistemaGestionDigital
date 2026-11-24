@@ -4,6 +4,7 @@ import { RepositorioUsuariosArchivo } from '../../infrastructure/persistencia/re
 import { BitacoraAuditoria } from '../../infrastructure/auditoria/bitacora-auditoria';
 import { Cifrador, hashear } from '../../infrastructure/seguridad/criptografia';
 import { GestorRoles } from '../permisos/gestor-roles';
+import { politicaPara } from './politica-contrasena';
 import { ErrorDeNegocio, actorDe, enmascarar, obtenerTipoDocumento } from '../comun';
 
 export interface DatosRegistro {
@@ -92,9 +93,11 @@ export class ServicioUsuarios {
 
     if (!/^\+?\d{7,15}$/.test(telefono)) throw new ErrorDeNegocio('El teléfono debe tener entre 7 y 15 dígitos.');
     if (correo && !/^\S+@\S+\.\S+$/.test(correo)) throw new ErrorDeNegocio('El correo no es válido.');
-    if (contrasena.length < 8 || !/\d/.test(contrasena) || !/\p{L}/u.test(contrasena)) {
-      throw new ErrorDeNegocio('La contraseña debe tener al menos 8 caracteres, con letras y números.');
-    }
+    const rol = comoAdministrador ? 'administrador' : 'ciudadano';
+
+    // Strategy: la regla de la contraseña depende del rol con el que queda la persona.
+    const politica = politicaPara(rol);
+    if (!politica.cumple(contrasena)) throw new ErrorDeNegocio(`La contraseña debe tener ${politica.descripcion}.`);
     validarRostro(datos.descriptorRostro);
 
     const usuarioId = this.idPara(tipoDocumento, numeroDocumento);
@@ -107,7 +110,7 @@ export class ServicioUsuarios {
       numeroDocumento,
       telefono,
       correo,
-      rol: comoAdministrador ? 'administrador' : 'ciudadano',
+      rol,
       contrasenaHash: hashear(contrasena),
       descriptorRostro: datos.descriptorRostro,
       creadoEn: Date.now(),

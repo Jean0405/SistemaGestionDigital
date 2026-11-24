@@ -1,6 +1,6 @@
 /**
- * Caso de uso "iniciar sesión" con los tres factores, en el orden que la
- * persona quiera. Aquí se combinan varios patrones:
+ * Caso de uso "iniciar sesión": la persona elige dos de los tres factores
+ * (contraseña, código SMS o rostro), en el orden que quiera. Aquí se combinan varios patrones:
  *
  *  - Factory Method: FlujoContrasenaSegura, FlujoTokenTelefono y FlujoRostro.
  *  - Decorator: cada flujo se envuelve con límite de intentos y auditoría.
@@ -29,7 +29,9 @@ import { EnviadorCorreo } from '../../infrastructure/notificaciones/enviador-cor
 import { BitacoraAuditoria } from '../../infrastructure/auditoria/bitacora-auditoria';
 import { CredencialFirmada, TokensJwt } from '../../infrastructure/seguridad/tokens-jwt';
 
-export const FACTORES_REQUERIDOS = ['contraseña', 'token-telefono', 'rostro'];
+export const FACTORES_DISPONIBLES = ['contraseña', 'token-telefono', 'rostro'];
+/** Cuántos factores distintos hay que superar para entrar (sigue siendo multifactor). */
+export const FACTORES_MINIMOS = 2;
 const MAXIMO_FALLOS = 3;
 const VIGENCIA_INTENTO_MS = 10 * 60 * 1000;
 
@@ -120,11 +122,11 @@ export class ServicioInicioSesion {
     return { ...resultado, distancia, puntaje };
   }
 
-  /** Con los tres factores: credencial con los permisos del rol (Builder), firmada como JWT, y aviso (Bridge). */
+  /** Con dos factores distintos: credencial con los permisos del rol (Builder), firmada como JWT, y aviso (Bridge). */
   completar(intentoId: string) {
     const { intento, usuario } = this.obtener(intentoId);
-    const faltan = FACTORES_REQUERIDOS.filter((f) => !intento.factoresSuperados.includes(f));
-    if (faltan.length > 0) throw new ErrorDeNegocio(`Faltan factores por superar: ${faltan.join(', ')}.`);
+    const faltan = FACTORES_MINIMOS - intento.factoresSuperados.length;
+    if (faltan > 0) throw new ErrorDeNegocio(`Falta verificar ${faltan} método(s) más para entrar.`);
 
     const credencial = this.director.construir(usuario.usuarioId, usuario.nombreCompleto, usuario.rol, intento.factoresSuperados);
     const token = this.tokens.emitir(credencial);

@@ -4,185 +4,260 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>SGID · Identidad digital</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231d4ed8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z'/%3E%3Cpath d='m9 12 2 2 4-4'/%3E%3C/svg%3E" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='%23b8321f' stroke-width='3'/%3E%3Ccircle cx='16' cy='16' r='7' fill='%23b8321f'/%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:ital,wght@0,500;0,600;1,500&display=swap" />
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
   <header class="barra">
-    <div class="barra__marca">
-      <i data-lucide="shield-check"></i>
-      <strong>SGID</strong>
-      <span>Identidad digital</span>
-    </div>
-    <div id="sesion-actual" class="barra__sesion" hidden>
-      <i data-lucide="user-round"></i>
-      <span id="sesion-nombre"></span>
-      <span id="sesion-rol" class="etiqueta"></span>
-      <button id="btn-cerrar-sesion" class="boton boton--linea boton--chico"><i data-lucide="log-out"></i>Salir</button>
+    <div class="barra__interior">
+      <button class="marca" data-ir="inicio" aria-label="SGID, ir al inicio">
+        <span class="marca__sello" aria-hidden="true">SG<br />ID</span>
+        <span class="marca__texto"><strong>SGID</strong><small>Registro de identidad digital</small></span>
+      </button>
+
+      <nav class="navegacion" aria-label="Principal">
+        <button class="nav-enlace" data-ir="perfil" hidden>Mi identidad</button>
+        <button class="nav-enlace" data-ir="admin" hidden>Administración</button>
+      </nav>
+
+      <div id="acciones-anonimas" class="barra__acciones">
+        <button class="nav-enlace" data-ir="inicio">Entrar</button>
+        <button class="boton boton--chico" data-ir="registro">Crear cuenta</button>
+      </div>
+
+      <div id="sesion-actual" class="usuario" hidden>
+        <span class="avatar" id="sesion-iniciales" aria-hidden="true"></span>
+        <span class="usuario__datos"><strong id="sesion-nombre"></strong><small id="sesion-rol"></small></span>
+        <button id="btn-cerrar-sesion" class="enlace">Salir</button>
+      </div>
     </div>
   </header>
 
-  <nav class="pestanas">
-    <button class="pestana" data-ir="inicio"><i data-lucide="log-in"></i>Iniciar sesión</button>
-    <button class="pestana" data-ir="registro"><i data-lucide="user-plus"></i>Registro</button>
-    <button class="pestana" data-ir="perfil" hidden><i data-lucide="user-round"></i>Mi perfil</button>
-    <button class="pestana" data-ir="admin" hidden><i data-lucide="settings"></i>Administración</button>
-  </nav>
-
   <main class="contenido">
     <div id="aviso-configuracion" class="aviso" hidden>
-      <i data-lucide="info"></i>
-      <span>Todavía no hay administrador. El primer registro queda como administrador del sistema.</span>
-    </div>
-
-    <div id="aviso-autorizacion" class="aviso aviso--servicio" hidden>
-      <i data-lucide="landmark"></i>
-      <span><strong id="aviso-servicio"></strong> te pidió iniciar sesión con SGID.</span>
+      <strong>Configuración inicial.</strong> La primera cuenta que se cree será la del administrador del sistema.
     </div>
 
     <!-- ============ Iniciar sesión ============ -->
     <section class="vista" data-vista="inicio">
-      <div id="inicio-paso-1" class="tarjeta tarjeta--angosta">
-        <h2>Iniciar sesión</h2>
-        <form id="form-inicio" class="formulario">
-          <div class="fila">
-            <label>Tipo de documento<select name="tipoDocumento" class="tipos-documento"></select></label>
-            <label>Número<input name="numeroDocumento" required autocomplete="username" /></label>
+      <div class="acceso">
+        <div class="acceso__principal">
+          <div id="aviso-autorizacion" class="aviso" hidden>
+            <strong id="aviso-servicio"></strong> te pidió entrar con SGID.
           </div>
-          <button class="boton">Continuar<i data-lucide="arrow-right"></i></button>
-          <div class="estado" data-estado></div>
-        </form>
-      </div>
 
-      <div id="inicio-paso-2" class="pila" hidden>
-        <div class="cabecera-paso">
-          <div>
-            <h2 id="inicio-saludo">Hola</h2>
-            <ol class="progreso" id="progreso-factores">
-              <li data-factor="contraseña"><i data-lucide="key-round"></i>Contraseña</li>
-              <li data-factor="token-telefono"><i data-lucide="smartphone"></i>Código</li>
-              <li data-factor="rostro"><i data-lucide="scan-face"></i>Rostro</li>
-            </ol>
+          <!-- Paso 1: documento -->
+          <div id="inicio-paso-1" class="paso">
+            <p class="rotulo">Acceso · paso 1 de 2</p>
+            <h1>¿Quién eres?</h1>
+            <p class="entradilla">Escribe tu documento. Luego confirmas que eres tú con dos de tus tres métodos.</p>
+            <form id="form-inicio" class="formulario">
+              <label>Tipo de documento<select name="tipoDocumento" class="tipos-documento"></select></label>
+              <label>Número<input name="numeroDocumento" required autocomplete="username" inputmode="numeric" placeholder="1023456789" /></label>
+              <button class="boton">Continuar <span aria-hidden="true">→</span></button>
+              <div class="estado" data-estado></div>
+            </form>
+            <p class="pie-formulario">¿Primera vez aquí? <button class="enlace" data-ir="registro">Crea tu cuenta</button></p>
           </div>
-          <button id="btn-otra-persona" class="boton boton--linea boton--chico">Cambiar de persona</button>
-        </div>
 
-        <div class="rejilla-3">
-          <article class="tarjeta" data-tarjeta-factor="contraseña">
-            <h3><i data-lucide="key-round"></i>Contraseña</h3>
-            <div class="burbujas"><span class="patron">Factory Method</span><span class="patron">Decorator</span></div>
-            <form id="form-contrasena" class="formulario">
-              <input type="password" name="valor" required autocomplete="current-password" placeholder="Tu contraseña" />
-              <button class="boton">Verificar</button>
-            </form>
-            <div class="estado" data-estado></div>
-            <ul class="bitacora" id="bitacora-contrasena"></ul>
-          </article>
+          <!-- Paso 2: dos métodos -->
+          <div id="inicio-paso-2" class="paso" hidden>
+            <button id="btn-otra-persona" class="enlace enlace--volver">← No soy yo</button>
+            <p class="rotulo">Acceso · paso 2 de 2</p>
+            <h1 id="inicio-saludo">Hola</h1>
+            <p class="entradilla" id="texto-elegir">Elige con qué quieres confirmar tu identidad.</p>
 
-          <article class="tarjeta" data-tarjeta-factor="token-telefono">
-            <h3><i data-lucide="smartphone"></i>Código al teléfono</h3>
-            <div class="burbujas"><span class="patron">Adapter</span></div>
-            <button id="btn-enviar-codigo" class="boton boton--linea"><i data-lucide="send"></i>Enviar código</button>
-            <div id="envios-sms" class="burbujas"></div>
-            <div id="telefono-simulado" class="telefono" hidden>
-              <div class="telefono__barra"><span>Teléfono de prueba</span><span id="telefono-numero"></span></div>
-              <div id="telefono-mensajes" class="telefono__mensajes"></div>
+            <div id="elegir-metodo" class="metodos">
+              <button class="metodo" data-metodo="rostro">
+                <span class="metodo__letra">A</span>
+                <span class="metodo__texto"><strong>Rostro</strong><small>Miras a la cámara unos segundos</small></span>
+                <span class="metodo__ir">Elegir →</span>
+                <span class="metodo__ok">✓ Sellado</span>
+              </button>
+              <button class="metodo" data-metodo="contraseña">
+                <span class="metodo__letra">B</span>
+                <span class="metodo__texto"><strong>Contraseña</strong><small>La que creaste al registrarte</small></span>
+                <span class="metodo__ir">Elegir →</span>
+                <span class="metodo__ok">✓ Sellado</span>
+              </button>
+              <button class="metodo" data-metodo="token-telefono">
+                <span class="metodo__letra">C</span>
+                <span class="metodo__texto"><strong>Código por SMS</strong><small id="metodo-sms-detalle">Llega a tu celular</small></span>
+                <span class="metodo__ir">Elegir →</span>
+                <span class="metodo__ok">✓ Sellado</span>
+              </button>
+              <div class="burbujas solo-patrones"><span class="patron">Factory Method</span><span class="patron">Decorator</span></div>
             </div>
-            <form id="form-codigo" class="formulario">
-              <input name="valor" required inputmode="numeric" maxlength="6" placeholder="Código de 6 dígitos" autocomplete="one-time-code" />
-              <button class="boton">Verificar</button>
-            </form>
-            <div class="estado" data-estado></div>
-          </article>
 
-          <article class="tarjeta" data-tarjeta-factor="rostro">
-            <h3><i data-lucide="scan-face"></i>Rostro</h3>
-            <div class="burbujas"><span class="patron">Factory Method</span><span class="patron">Singleton</span></div>
-            <video class="camara" autoplay muted playsinline></video>
-            <div class="fila-botones">
-              <button class="boton boton--linea" data-activar-camara><i data-lucide="camera"></i>Activar cámara</button>
-              <button id="btn-verificar-rostro" class="boton" disabled>Verificar</button>
+            <!-- Contraseña -->
+            <div class="panel-metodo" data-panel-metodo="contraseña" hidden>
+              <button class="enlace enlace--volver" data-volver>← Elegir otro método</button>
+              <h2>Contraseña</h2>
+              <form id="form-contrasena" class="formulario">
+                <input type="password" name="valor" required autocomplete="current-password" placeholder="Tu contraseña" aria-label="Contraseña" />
+                <button class="boton">Verificar</button>
+              </form>
+              <div class="estado" data-estado></div>
+              <div class="burbujas solo-patrones"><span class="patron">Factory Method</span><span class="patron">Decorator</span></div>
+              <ul class="bitacora solo-patrones" id="bitacora-contrasena"></ul>
             </div>
-            <div class="estado" data-estado></div>
-            <div id="medidor-rostro"></div>
-          </article>
+
+            <!-- Código SMS -->
+            <div class="panel-metodo" data-panel-metodo="token-telefono" hidden>
+              <button class="enlace enlace--volver" data-volver>← Elegir otro método</button>
+              <h2>Código por SMS</h2>
+              <p>Te mandamos 6 dígitos al <strong id="telefono-numero" class="dato"></strong>. Vencen en 5 minutos.</p>
+              <button id="btn-enviar-codigo" class="boton boton--linea">Enviar código</button>
+              <form id="form-codigo" class="formulario" hidden>
+                <input name="valor" class="entrada-codigo" required inputmode="numeric" maxlength="6" pattern="\d{6}" placeholder="______" autocomplete="one-time-code" aria-label="Código de 6 dígitos" />
+                <button class="boton">Verificar código</button>
+              </form>
+              <div class="estado" data-estado></div>
+              <div class="burbujas solo-patrones"><span class="patron">Adapter</span></div>
+              <div id="envios-sms" class="burbujas solo-patrones"></div>
+            </div>
+
+            <!-- Rostro -->
+            <div class="panel-metodo" data-panel-metodo="rostro" hidden>
+              <button class="enlace enlace--volver" data-volver>← Elegir otro método</button>
+              <h2>Rostro</h2>
+              <p>Pon tu cara dentro del óvalo, con buena luz.</p>
+              <div class="marco-camara" id="marco-camara-inicio">
+                <video class="camara" autoplay muted playsinline></video>
+                <span class="marco-camara__guia" aria-hidden="true"></span>
+                <span class="marco-camara__aviso"></span>
+              </div>
+              <button id="btn-verificar-rostro" class="boton" disabled>Verificar mi rostro</button>
+              <div class="estado" data-estado></div>
+              <div class="burbujas solo-patrones"><span class="patron">Factory Method</span><span class="patron">Singleton</span></div>
+              <div id="medidor-rostro" class="solo-patrones"></div>
+            </div>
+
+            <p id="entrando" class="entrando" hidden>Dos sellos. Abriendo tu cuenta…</p>
+            <div class="estado" id="estado-completar"></div>
+            <div class="burbujas solo-patrones"><span class="patron">Builder</span><span class="patron">Bridge</span></div>
+          </div>
         </div>
 
-        <div class="tarjeta tarjeta--fila">
-          <div class="burbujas"><span class="patron">Builder</span><span class="patron">Bridge</span></div>
-          <button id="btn-completar" class="boton" disabled><i data-lucide="log-in"></i>Entrar</button>
-          <div class="estado" data-estado></div>
-        </div>
+        <!-- El pase: aquí caen los sellos -->
+        <aside class="pase" aria-label="Tu pase de acceso">
+          <div class="pase__cabecera">
+            <span>Pase de acceso</span>
+            <span id="pase-folio">N.º ––––––</span>
+          </div>
+          <dl class="pase__datos">
+            <div><dt>Titular</dt><dd id="pase-titular">—</dd></div>
+            <div><dt>Documento</dt><dd id="pase-documento">—</dd></div>
+          </dl>
+          <div class="pase__sellos">
+            <div class="ranura" data-ranura="0"><span class="ranura__vacia">sello 1</span></div>
+            <div class="ranura" data-ranura="1"><span class="ranura__vacia">sello 2</span></div>
+          </div>
+          <p class="pase__nota" id="pase-nota">Cada método que verifiques pone un sello. Con dos, entras.</p>
+        </aside>
       </div>
     </section>
 
     <!-- ============ Autorizar a un servicio ============ -->
     <section class="vista" data-vista="autorizar">
-      <div class="tarjeta tarjeta--angosta">
-        <h2><i data-lucide="landmark"></i><span id="autorizar-servicio"></span></h2>
-        <div class="burbujas"><span class="patron">Builder</span><span class="patron">Proxy</span></div>
-        <p>Este servicio va a recibir:</p>
-        <ul class="lista-iconos">
-          <li><i data-lucide="user-round"></i>Tu nombre completo</li>
-          <li><i data-lucide="contact"></i>Tu tipo y número de documento</li>
-          <li><i data-lucide="fingerprint"></i>Los factores con los que te verificaste</li>
-        </ul>
+      <div class="carta">
+        <p class="rotulo">Solicitud de datos</p>
+        <h1><span id="autorizar-servicio"></span> quiere saber quién eres</h1>
+        <p class="entradilla">Si aceptas, SGID le entrega solo esto:</p>
+        <ol class="lista-entrega">
+          <li>Tu nombre completo</li>
+          <li>Tu tipo y número de documento</li>
+          <li>Los métodos con que confirmaste tu identidad</li>
+        </ol>
+        <p class="nota">No le entregamos tu contraseña, tu celular ni tu rostro.</p>
         <div class="fila-botones">
-          <button id="btn-permitir" class="boton"><i data-lucide="check"></i>Permitir y continuar</button>
-          <button id="btn-cancelar-autorizacion" class="boton boton--linea">Cancelar</button>
+          <button id="btn-permitir" class="boton">Aceptar y continuar</button>
+          <button id="btn-cancelar-autorizacion" class="boton boton--linea">No, volver</button>
         </div>
         <div class="estado" data-estado></div>
+        <div class="burbujas solo-patrones"><span class="patron">Builder</span><span class="patron">Proxy</span></div>
       </div>
     </section>
 
     <!-- ============ Registro ============ -->
     <section class="vista" data-vista="registro">
-      <div class="tarjeta tarjeta--angosta">
-        <h2 id="registro-titulo">Crear cuenta</h2>
-        <div class="burbujas"><span class="patron">Flyweight</span></div>
-        <form id="form-registro" class="formulario">
-          <label>Nombre completo<input name="nombreCompleto" required autocomplete="name" /></label>
-          <div class="fila">
-            <label>Tipo de documento<select name="tipoDocumento" class="tipos-documento"></select></label>
-            <label>Número<input name="numeroDocumento" required /></label>
-          </div>
-          <div class="fila">
-            <label>Teléfono<input name="telefono" required inputmode="tel" autocomplete="tel" /></label>
-            <label><span>Correo <small>(opcional)</small></span><input name="correo" type="email" autocomplete="email" /></label>
-          </div>
-          <div class="fila">
-            <label>Contraseña<input name="contrasena" type="password" required minlength="8" autocomplete="new-password" placeholder="Mínimo 8, con letras y números" /></label>
-            <label>Repite la contraseña<input name="confirmacion" type="password" required minlength="8" autocomplete="new-password" /></label>
-          </div>
+      <div class="documento">
+        <p class="rotulo">Formulario de registro</p>
+        <h1 id="registro-titulo">Crear cuenta</h1>
+        <p class="entradilla">Se llena una sola vez. Al final tendrás tres formas de demostrar que eres tú: rostro, contraseña y código SMS.</p>
+        <div class="burbujas solo-patrones"><span class="patron">Flyweight</span><span class="patron">Strategy</span></div>
 
-          <fieldset class="caja-rostro">
-            <legend>Rostro</legend>
-            <video class="camara" autoplay muted playsinline></video>
-            <div class="fila-botones">
-              <button type="button" class="boton boton--linea" data-activar-camara><i data-lucide="camera"></i>Activar cámara</button>
-              <button type="button" id="btn-capturar-rostro" class="boton boton--linea" disabled>Capturar</button>
+        <form id="form-registro" class="formulario">
+          <fieldset class="seccion">
+            <legend><span class="seccion__numero">01</span>Quién eres</legend>
+            <label>Nombre completo<input name="nombreCompleto" required autocomplete="name" placeholder="Como aparece en tu documento" /></label>
+            <div class="fila">
+              <label>Tipo de documento<select name="tipoDocumento" class="tipos-documento"></select></label>
+              <label>Número<input name="numeroDocumento" required inputmode="numeric" /></label>
             </div>
-            <div class="estado" id="estado-captura"></div>
           </fieldset>
 
-          <button class="boton">Crear cuenta</button>
+          <fieldset class="seccion">
+            <legend><span class="seccion__numero">02</span>Cómo contactarte</legend>
+            <div class="fila">
+              <label>Celular<input name="telefono" required inputmode="tel" autocomplete="tel" placeholder="3001234567" /><small>Aquí llegan los códigos SMS.</small></label>
+              <label><span>Correo <small>(opcional)</small></span><input name="correo" type="email" autocomplete="email" placeholder="nombre@correo.com" /></label>
+            </div>
+          </fieldset>
+
+          <fieldset class="seccion">
+            <legend><span class="seccion__numero">03</span>Tu contraseña</legend>
+            <div class="fila">
+              <label>Contraseña<input name="contrasena" type="password" required minlength="8" autocomplete="new-password" /></label>
+              <label>Repítela<input name="confirmacion" type="password" required minlength="8" autocomplete="new-password" /></label>
+            </div>
+            <small class="ayuda" id="regla-contrasena"></small>
+          </fieldset>
+
+          <fieldset class="seccion">
+            <legend><span class="seccion__numero">04</span>Tu rostro</legend>
+            <p class="ayuda">Guardamos una huella numérica de tu cara, no una foto.</p>
+            <div class="registro-rostro">
+              <div class="marco-camara marco-camara--chico" id="marco-camara-registro">
+                <video class="camara" autoplay muted playsinline></video>
+                <span class="marco-camara__guia" aria-hidden="true"></span>
+                <span class="marco-camara__aviso">Cámara apagada</span>
+              </div>
+              <div class="registro-rostro__acciones">
+                <button type="button" class="boton boton--linea" data-activar-camara>Encender cámara</button>
+                <button type="button" id="btn-capturar-rostro" class="boton" disabled>Capturar rostro</button>
+                <div class="estado" id="estado-captura"></div>
+              </div>
+            </div>
+          </fieldset>
+
+          <button class="boton boton--grande">Crear cuenta</button>
           <div class="estado" data-estado></div>
         </form>
+        <p class="pie-formulario">¿Ya tienes cuenta? <button class="enlace" data-ir="inicio">Entra</button></p>
       </div>
     </section>
 
     <!-- ============ Perfil ============ -->
     <section class="vista" data-vista="perfil">
-      <div id="perfil-contenido" class="rejilla-perfil"></div>
+      <div id="perfil-contenido"></div>
     </section>
 
     <!-- ============ Administración ============ -->
     <section class="vista" data-vista="admin">
+      <div class="encabezado-vista">
+        <p class="rotulo">Panel interno</p>
+        <h1>Administración</h1>
+      </div>
+
       <nav class="subpestanas" id="admin-pestanas">
-        <button class="subpestana" data-admin="roles" data-permiso="gestionar-roles"><i data-lucide="shield"></i>Roles y permisos</button>
-        <button class="subpestana" data-admin="usuarios" data-permiso="gestionar-usuarios"><i data-lucide="users"></i>Usuarios</button>
-        <button class="subpestana" data-admin="servicios" data-permiso="gestionar-servicios"><i data-lucide="plug"></i>Servicios conectados</button>
-        <button class="subpestana" data-admin="auditoria" data-permiso="ver-auditoria"><i data-lucide="scroll-text"></i>Auditoría</button>
+        <button class="subpestana" data-admin="roles" data-permiso="gestionar-roles">Roles y permisos</button>
+        <button class="subpestana" data-admin="usuarios" data-permiso="gestionar-usuarios">Usuarios</button>
+        <button class="subpestana" data-admin="servicios" data-permiso="gestionar-servicios">Servicios conectados</button>
+        <button class="subpestana" data-admin="auditoria" data-permiso="ver-auditoria">Auditoría</button>
       </nav>
 
       <div class="panel" data-panel="roles">
@@ -190,9 +265,9 @@
           <div class="tarjeta">
             <div class="cabecera-tarjeta">
               <h3>Roles</h3>
-              <button id="btn-nuevo-rol" class="boton boton--linea boton--chico"><i data-lucide="plus"></i>Nuevo</button>
+              <button id="btn-nuevo-rol" class="boton boton--linea boton--chico">+ Nuevo</button>
             </div>
-            <div class="burbujas"><span class="patron">Composite</span></div>
+            <div class="burbujas solo-patrones"><span class="patron">Composite</span></div>
             <ul id="lista-roles" class="lista-roles"></ul>
           </div>
           <div class="tarjeta" id="editor-rol"></div>
@@ -201,8 +276,8 @@
 
       <div class="panel" data-panel="usuarios">
         <div class="tarjeta">
-          <h3>Usuarios</h3>
-          <div class="burbujas"><span class="patron">Decorator</span></div>
+          <h3>Personas registradas</h3>
+          <div class="burbujas solo-patrones"><span class="patron">Decorator</span></div>
           <div class="tabla-scroll"><table class="tabla" id="tabla-usuarios"></table></div>
         </div>
       </div>
@@ -210,10 +285,11 @@
       <div class="panel" data-panel="servicios">
         <div class="tarjeta">
           <h3>Conectar un servicio</h3>
+          <p class="ayuda">Recibe un <code>client_id</code> y un secreto para ofrecer “Entrar con SGID”.</p>
           <form id="form-servicio" class="formulario formulario--linea">
-            <input name="nombre" required placeholder="Nombre del servicio, ej.: Alcaldía de Villa Esperanza" />
-            <input name="urlRetorno" id="servicio-url" required placeholder="URL de retorno" />
-            <button class="boton"><i data-lucide="plug"></i>Conectar</button>
+            <input name="nombre" required placeholder="Nombre, ej.: Alcaldía de Villa Esperanza" aria-label="Nombre del servicio" />
+            <input name="urlRetorno" id="servicio-url" required placeholder="URL de retorno" aria-label="URL de retorno" />
+            <button class="boton">Conectar</button>
           </form>
           <div class="estado" data-estado></div>
           <div id="credenciales-servicio"></div>
@@ -227,18 +303,41 @@
       <div class="panel" data-panel="auditoria">
         <div class="tarjeta">
           <div class="cabecera-tarjeta">
-            <h3>Auditoría</h3>
+            <h3>Libro de auditoría</h3>
             <div class="fila-botones">
-              <button id="btn-refrescar-auditoria" class="boton boton--linea boton--chico"><i data-lucide="refresh-cw"></i>Actualizar</button>
-              <button id="btn-exportar-auditoria" class="boton boton--linea boton--chico"><i data-lucide="download"></i>Exportar</button>
+              <button id="btn-refrescar-auditoria" class="boton boton--linea boton--chico">Actualizar</button>
+              <button class="boton boton--linea boton--chico" data-exportar="csv">Descargar CSV</button>
+              <button class="boton boton--linea boton--chico" data-exportar="json">Descargar JSON</button>
             </div>
           </div>
+          <div class="burbujas solo-patrones"><span class="patron">Template Method</span></div>
           <div id="integridad-auditoria"></div>
           <div class="tabla-scroll tabla-scroll--alta"><table class="tabla tabla--compacta" id="tabla-auditoria"></table></div>
         </div>
       </div>
     </section>
   </main>
+
+  <footer class="pie">
+    <div class="pie__interior">
+      <span>SGID — un solo registro, todos los trámites.</span>
+      <label class="interruptor">
+        <input type="checkbox" id="interruptor-patrones" />
+        <span class="interruptor__pista" aria-hidden="true"></span>
+        Ver patrones de diseño
+      </label>
+    </div>
+  </footer>
+
+  <!-- SMS simulado: en producción el código llega al celular real. -->
+  <div id="sms-entrante" class="nota-sms" role="status" hidden>
+    <div class="nota-sms__cabecera">
+      <span>SMS · SGID</span>
+      <button id="btn-cerrar-sms" class="nota-sms__cerrar" aria-label="Cerrar">×</button>
+    </div>
+    <p id="sms-texto"></p>
+    <small>Así llegaría a tu celular (simulación).</small>
+  </div>
 
   <div id="notificacion" class="notificacion" role="status" hidden></div>
 

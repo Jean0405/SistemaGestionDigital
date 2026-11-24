@@ -1,4 +1,4 @@
-/** Persona registrada, con lo necesario para autenticarla con sus tres factores. */
+/** Persona registrada, con lo necesario para autenticarla con cualquiera de sus tres factores. */
 export interface Usuario {
   usuarioId: string;
   nombreCompleto: string;

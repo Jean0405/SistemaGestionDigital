@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { Sistema } from '../app';
 import { requierePermiso, requiereToken, requiereUsuario } from '../seguridad-http';
 import { actorDe } from '../../application/comun';
+import { ExportadorCsv, ExportadorJson } from '../../application/auditoria/exportador-auditoria';
 
 export function rutasAdmin(sistema: Sistema): Router {
   const r = Router();
@@ -64,9 +65,10 @@ export function rutasAdmin(sistema: Sistema): Router {
     res.json({ integridad: auditoria.verificar(), registros: auditoria.listar().slice(-300).reverse() });
   });
 
-  r.get('/auditoria/exportar', permiso('exportar-auditoria'), (_req, res) => {
-    auditoria.registrar({ actor: actorDe(res.locals.usuario), accion: 'auditoria.exportar', resultado: 'exito', detalle: 'Descarga completa' });
-    res.json({ integridad: auditoria.verificar(), registros: auditoria.listar() });
+  // Template Method: el procedimiento de exportar es el mismo; solo cambia el formato.
+  r.get('/auditoria/exportar', permiso('exportar-auditoria'), (req, res) => {
+    const exportador = req.query.formato === 'csv' ? new ExportadorCsv() : new ExportadorJson();
+    res.json(exportador.exportar(auditoria, actorDe(res.locals.usuario)));
   });
 
   return r;

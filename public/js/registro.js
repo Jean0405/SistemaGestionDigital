@@ -4,33 +4,57 @@ import { api, datosFormulario, estado, mostrarEstado, notificar } from './util.j
 import { crearCamara } from './camara.js';
 
 const formulario = document.getElementById('form-registro');
+const marco = document.getElementById('marco-camara-registro');
+const avisoCamara = marco.querySelector('.marco-camara__aviso');
 const estadoCaptura = document.getElementById('estado-captura');
+const botonActivar = formulario.querySelector('[data-activar-camara]');
 const botonCapturar = document.getElementById('btn-capturar-rostro');
-const camara = crearCamara(formulario.querySelector('video'));
+const camara = crearCamara(marco.querySelector('video'));
 let descriptor = null;
 
-/** Cambia títulos y destino del formulario según si ya existe un administrador. */
+/** Cambia el título y la regla de la contraseña según si ya existe un administrador. */
 export function actualizarModoRegistro() {
   const inicial = !estado.config.hayAdministrador;
-  document.getElementById('registro-titulo').textContent = inicial ? 'Crear cuenta de administrador' : 'Crear cuenta';
+  document.getElementById('registro-titulo').textContent = inicial ? 'Crear la cuenta del administrador' : 'Crear cuenta';
+  // La regla cambia según quién se registra (Strategy en el servidor).
+  document.getElementById('regla-contrasena').textContent = `Debe tener ${estado.config.reglaContrasena}.`;
+}
+
+function reiniciarRostro() {
+  descriptor = null;
+  camara.apagar();
+  marco.classList.remove('listo');
+  avisoCamara.textContent = 'Cámara apagada';
+  botonActivar.hidden = false;
+  botonCapturar.disabled = true;
+  mostrarEstado(estadoCaptura, '');
 }
 
 export function iniciarRegistro({ alRegistrar }) {
-  formulario.querySelector('[data-activar-camara]').addEventListener('click', async () => {
+  botonActivar.addEventListener('click', async () => {
     try {
-      mostrarEstado(estadoCaptura, 'Cargando…');
+      avisoCamara.textContent = 'Encendiendo la cámara…';
       await camara.activar();
+      avisoCamara.textContent = '';
+      marco.classList.add('listo');
       botonCapturar.disabled = false;
-      mostrarEstado(estadoCaptura, 'Cámara activa.', true);
+      botonActivar.hidden = true;
+      mostrarEstado(estadoCaptura, 'Mira de frente y presiona "Capturar rostro".');
     } catch (error) {
+      avisoCamara.textContent = 'Cámara no disponible';
       mostrarEstado(estadoCaptura, 'No se pudo activar la cámara: ' + error.message, false);
     }
   });
 
   botonCapturar.addEventListener('click', async () => {
     try {
+      mostrarEstado(estadoCaptura, 'Analizando…');
       descriptor = await camara.capturar();
-      mostrarEstado(estadoCaptura, 'Rostro capturado.', true);
+      camara.apagar();
+      avisoCamara.textContent = '✓ Rostro registrado';
+      botonCapturar.disabled = true;
+      botonActivar.hidden = false;
+      mostrarEstado(estadoCaptura, 'Rostro capturado. Si quieres repetirlo, activa la cámara de nuevo.', true);
     } catch (error) {
       mostrarEstado(estadoCaptura, error.message, false);
     }
@@ -38,11 +62,11 @@ export function iniciarRegistro({ alRegistrar }) {
 
   formulario.addEventListener('submit', async (evento) => {
     evento.preventDefault();
-    const salida = formulario.querySelector('[data-estado]');
+    const salida = formulario.querySelector(':scope > [data-estado]');
     const datos = datosFormulario(formulario);
 
     if (datos.contrasena !== datos.confirmacion) return mostrarEstado(salida, 'Las contraseñas no coinciden.', false);
-    if (!descriptor) return mostrarEstado(salida, 'Falta capturar el rostro.', false);
+    if (!descriptor) return mostrarEstado(salida, 'Falta registrar tu rostro (paso 4).', false);
 
     const ruta = estado.config.hayAdministrador ? '/api/registro' : '/api/registro/administrador';
     const { ok, datos: respuesta } = await api('POST', ruta, {
@@ -56,14 +80,11 @@ export function iniciarRegistro({ alRegistrar }) {
     });
     if (!ok) return mostrarEstado(salida, respuesta.error, false);
 
-    notificar(`${respuesta.nombreCompleto} quedó registrado como ${respuesta.rol}.`);
+    notificar(`Cuenta creada. Ahora inicia sesión, ${respuesta.nombreCompleto.split(' ')[0]}.`);
     const documento = { tipoDocumento: datos.tipoDocumento, numeroDocumento: datos.numeroDocumento };
     formulario.reset();
-    descriptor = null;
-    botonCapturar.disabled = true;
-    camara.apagar();
+    reiniciarRostro();
     mostrarEstado(salida, '');
-    mostrarEstado(estadoCaptura, '');
     alRegistrar(documento);
   });
 }

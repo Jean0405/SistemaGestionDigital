@@ -1,12 +1,13 @@
-/** Registro, inicio de sesión con los tres factores y perfil de la persona. */
+/** Registro, inicio de sesión con dos de los tres factores y perfil de la persona. */
 import { Router } from 'express';
 import { Sistema } from '../app';
 import { requiereToken, requiereUsuario } from '../seguridad-http';
 import { catalogoDePermisos } from '../../application/permisos/gestor-roles';
-import { FACTORES_REQUERIDOS } from '../../application/auth/servicio-inicio-sesion';
+import { FACTORES_DISPONIBLES, FACTORES_MINIMOS } from '../../application/auth/servicio-inicio-sesion';
 import { RepositorioIdentidadProxy } from '../../application/identidad/repositorio-identidad-proxy';
 import { ErrorDeNegocio, enmascarar, obtenerTipoDocumento } from '../../application/comun';
 import { DocumentoIdentidad } from '../../domain/documentos/documento-identidad';
+import { politicaPara } from '../../application/usuarios/politica-contrasena';
 
 const PERMISOS_DEL_PANEL = ['gestionar-roles', 'gestionar-usuarios', 'gestionar-servicios', 'ver-auditoria', 'exportar-auditoria'];
 
@@ -15,11 +16,15 @@ export function rutasSesion(sistema: Sistema): Router {
   const { usuarios, sesiones, roles } = sistema;
 
   r.get('/estado', (_req, res) => {
+    const hayAdministrador = usuarios.hayAdministrador();
     res.json({
-      hayAdministrador: usuarios.hayAdministrador(),
+      hayAdministrador,
+      // La regla (Strategy) que se le pedirá a quien se registre ahora.
+      reglaContrasena: politicaPara(hayAdministrador ? 'ciudadano' : 'administrador').descripcion,
       umbralFacial: sistema.config.obtener('biometriaUmbralMinimo'),
       smsSimulado: sistema.smsSimulado,
-      factoresRequeridos: FACTORES_REQUERIDOS,
+      factoresDisponibles: FACTORES_DISPONIBLES,
+      factoresMinimos: FACTORES_MINIMOS,
       tiposDocumento: ['CC', 'CE', 'PA', 'TI'].map((codigo) => ({ codigo, nombre: obtenerTipoDocumento(codigo).nombre })),
       catalogoDePermisos,
     });
@@ -36,7 +41,7 @@ export function rutasSesion(sistema: Sistema): Router {
     res.status(201).json({ nombreCompleto: usuario.nombreCompleto, rol: usuario.rol });
   });
 
-  // --- Inicio de sesión: un "intento" con los factores en cualquier orden ---
+  // --- Inicio de sesión: un "intento" donde la persona elige dos factores, en cualquier orden ---
   r.post('/sesion/iniciar', (req, res) => res.json(sesiones.iniciar(req.body.tipoDocumento, req.body.numeroDocumento)));
   r.post('/sesion/:id/contrasena', (req, res) => res.json(sesiones.verificarContrasena(req.params.id, req.body.valor)));
   r.post('/sesion/:id/sms', (req, res) => res.json(sesiones.enviarCodigo(req.params.id)));

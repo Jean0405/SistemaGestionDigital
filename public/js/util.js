@@ -111,6 +111,28 @@ export function datosFormulario(formulario) {
   return Object.fromEntries(new FormData(formulario).entries());
 }
 
+/** Cómo se le muestra cada factor a la persona. */
+export const NOMBRES_FACTOR = { contraseña: 'Contraseña', 'token-telefono': 'Código SMS', rostro: 'Rostro' };
+
+/** Un sello circular de "verificado" para un factor, con fecha y una inclinación propia. */
+export function sello(factor, cuando, giro = -8, chico = false) {
+  const momento = new Date(cuando);
+  const dia = momento.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' }).replace('.', '');
+  const hora = momento.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false });
+  // En el sello chico no cabe todo el texto: queda solo lo esencial.
+  return h`<div class="sello ${chico ? 'sello--chico' : ''}" style="--giro:${giro}deg">
+    <span class="sello__arriba">${chico ? 'SGID' : 'SGID · verificado'}</span>
+    <strong>${NOMBRES_FACTOR[factor] ?? factor}</strong>
+    <span class="sello__fecha">${chico ? hora : `${dia} · ${hora}`}</span>
+  </div>`;
+}
+
+/** "Carlos Andrés Pérez" → "CP". */
+export function iniciales(nombre) {
+  const partes = String(nombre ?? '').trim().split(/\s+/).filter(Boolean);
+  return ((partes[0]?.[0] ?? '') + (partes.length > 1 ? partes[partes.length - 1][0] : '')).toUpperCase();
+}
+
 export function fecha(valor) {
   return new Date(valor).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'medium' });
 }

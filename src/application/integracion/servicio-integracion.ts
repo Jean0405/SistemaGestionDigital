@@ -3,7 +3,7 @@
  * authorization code). Ningún servicio implementa su propia autenticación:
  *
  *  1. El servicio manda a la persona a SGID: /autorizar?client_id=...&redirect_uri=...&state=...
- *  2. La persona se autentica con sus tres factores y acepta compartir sus datos.
+ *  2. La persona se autentica con dos de sus factores y acepta compartir sus datos.
  *  3. SGID la devuelve al servicio con un código de un solo uso.
  *  4. El servicio canjea el código (con su client_secret) por un token y pide los datos de la persona.
  */

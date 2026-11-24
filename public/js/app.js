@@ -1,14 +1,16 @@
 // Página principal: carga el estado del sistema, conecta las vistas y decide qué pestañas se ven.
 
-import { api, dibujarIconos, estado, guardarSesion, h, mostrarEstado, notificar, pintar } from './util.js';
+import { api, dibujarIconos, estado, guardarSesion, h, iniciales, mostrarEstado, notificar, pintar } from './util.js';
 import { actualizarModoRegistro, iniciarRegistro } from './registro.js';
 import { iniciarInicioSesion, prellenarDocumento, reiniciarInicioSesion } from './inicio-sesion.js';
 import { pintarPerfil } from './perfil.js';
 import { abrirAdmin, iniciarAdmin } from './admin.js';
 
 function ir(vista) {
+  // Con sesión iniciada no tiene sentido volver a la pantalla de entrada ni al registro.
+  if (estado.perfil && (vista === 'inicio' || vista === 'registro')) vista = 'perfil';
   document.querySelectorAll('[data-vista]').forEach((v) => (v.hidden = v.dataset.vista !== vista));
-  document.querySelectorAll('[data-ir]').forEach((b) => b.classList.toggle('pestana--activa', b.dataset.ir === vista));
+  document.querySelectorAll('.nav-enlace').forEach((b) => b.classList.toggle('activo', b.dataset.ir === vista));
   if (vista === 'admin') abrirAdmin();
   window.scrollTo({ top: 0 });
 }
@@ -38,14 +40,36 @@ async function cargarPerfil() {
 function pintarCabecera() {
   const conSesion = Boolean(estado.perfil);
   document.getElementById('sesion-actual').hidden = !conSesion;
-  document.querySelector('[data-ir="perfil"]').hidden = !conSesion;
-  document.querySelector('[data-ir="admin"]').hidden = !conSesion || estado.perfil.panel.length === 0;
-  document.querySelector('[data-ir="inicio"]').hidden = conSesion;
+  document.getElementById('acciones-anonimas').hidden = conSesion;
+  document.querySelector('.nav-enlace[data-ir="perfil"]').hidden = !conSesion;
+  document.querySelector('.nav-enlace[data-ir="admin"]').hidden = !conSesion || estado.perfil.panel.length === 0;
   if (conSesion) {
-    document.getElementById('sesion-nombre').textContent = estado.perfil.credencial.nombreCompleto;
-    document.getElementById('sesion-rol').textContent = estado.perfil.credencial.rol;
-    pintarPerfil({ alIrAlPanel: () => ir('admin') });
+    const { nombreCompleto, rol } = estado.perfil.credencial;
+    document.getElementById('sesion-nombre').textContent = nombreCompleto;
+    document.getElementById('sesion-rol').textContent = rol;
+    document.getElementById('sesion-iniciales').textContent = iniciales(nombreCompleto);
+    pintarPerfil();
   }
+}
+
+/** Interruptor del pie: muestra los patrones de diseño usados en cada parte (para presentar). */
+function iniciarInterruptorPatrones() {
+  const interruptor = document.getElementById('interruptor-patrones');
+  try {
+    interruptor.checked = localStorage.getItem('sgid.patrones') === 'si';
+  } catch {
+    // sin almacenamiento: arranca apagado
+  }
+  const aplicar = () => document.body.classList.toggle('con-patrones', interruptor.checked);
+  interruptor.addEventListener('change', () => {
+    aplicar();
+    try {
+      localStorage.setItem('sgid.patrones', interruptor.checked ? 'si' : 'no');
+    } catch {
+      // sin almacenamiento: dura hasta recargar
+    }
+  });
+  aplicar();
 }
 
 // --- "Iniciar sesión con SGID": la persona llega desde un servicio del Estado ---
@@ -89,7 +113,7 @@ async function alEntrar() {
   await cargarEstado();
   pintarCabecera();
   if (estado.autorizacion) return ir('autorizar');
-  notificar(`Bienvenido, ${estado.perfil.credencial.nombreCompleto}.`);
+  notificar(`Bienvenido, ${estado.perfil.credencial.nombreCompleto.split(' ')[0]}.`);
   ir('perfil');
 }
 
@@ -109,10 +133,12 @@ async function arrancar() {
   await leerAutorizacion();
   pintarCabecera();
 
-  document.querySelector('.pestanas').addEventListener('click', (evento) => {
+  // Cualquier botón con data-ir (barra, enlaces dentro de las vistas) cambia de vista.
+  document.addEventListener('click', (evento) => {
     const boton = evento.target.closest('[data-ir]');
     if (boton) ir(boton.dataset.ir);
   });
+  iniciarInterruptorPatrones();
   document.getElementById('btn-cerrar-sesion').addEventListener('click', cerrarSesion);
   document.getElementById('btn-permitir').addEventListener('click', permitir);
   document.getElementById('btn-cancelar-autorizacion').addEventListener('click', cancelarAutorizacion);

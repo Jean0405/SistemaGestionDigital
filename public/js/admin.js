@@ -206,12 +206,13 @@ async function cargarAuditoria() {
   );
 }
 
-async function exportarAuditoria() {
-  const { ok, datos } = await api('GET', '/api/admin/auditoria/exportar');
+/** El servidor arma el archivo (Template Method) y aquí solo se descarga. */
+async function exportarAuditoria(formato) {
+  const { ok, datos } = await api('GET', `/api/admin/auditoria/exportar?formato=${formato}`);
   if (!ok) return mostrarError(datos);
   const enlace = document.createElement('a');
-  enlace.href = URL.createObjectURL(new Blob([JSON.stringify(datos, null, 2)], { type: 'application/json' }));
-  enlace.download = `auditoria-sgid-${new Date().toISOString().slice(0, 10)}.json`;
+  enlace.href = URL.createObjectURL(new Blob([datos.contenido], { type: datos.tipo }));
+  enlace.download = datos.nombre;
   enlace.click();
   cargarAuditoria();
 }
@@ -230,7 +231,7 @@ function abrirSubpestana(nombre) {
 export function abrirAdmin() {
   const botones = [...document.querySelectorAll('[data-admin]')];
   botones.forEach((b) => (b.hidden = !puede(b.dataset.permiso)));
-  document.getElementById('btn-exportar-auditoria').hidden = !puede('exportar-auditoria');
+  document.querySelectorAll('[data-exportar]').forEach((b) => (b.hidden = !puede('exportar-auditoria')));
   const visibles = botones.filter((b) => !b.hidden);
   const activa = visibles.find((b) => b.classList.contains('subpestana--activa')) ?? visibles[0];
   if (activa) abrirSubpestana(activa.dataset.admin);
@@ -311,5 +312,5 @@ export function iniciarAdmin() {
   });
 
   document.getElementById('btn-refrescar-auditoria').addEventListener('click', cargarAuditoria);
-  document.getElementById('btn-exportar-auditoria').addEventListener('click', exportarAuditoria);
+  document.querySelectorAll('[data-exportar]').forEach((b) => b.addEventListener('click', () => exportarAuditoria(b.dataset.exportar)));
 }
